@@ -12,7 +12,13 @@ import pandas as pd
 
 from .config import RetrievalSettings
 from .data import DatasetStore, best_row_for_group, load_cell_type_data
-from .engine import _available_representations, run_cross_dataset_retrieval, summarize_retrieval
+from .engine import (
+    DERIVED_POPULATION_ZSCORE_DATASET_REP,
+    DERIVED_POPULATION_ZSCORE_REP,
+    _available_representations,
+    run_cross_dataset_retrieval,
+    summarize_retrieval,
+)
 
 TRUTH_COLUMNS = [
     "query_dataset",
@@ -116,6 +122,10 @@ def slugify_representation(representation: str) -> str:
     return slug or "rep"
 
 
+def output_filename(output_prefix: str, name: str) -> str:
+    return f"{output_prefix}_{name}" if output_prefix else name
+
+
 def task_detail_filename(
     output_prefix: str,
     task_id: int,
@@ -127,9 +137,10 @@ def task_detail_filename(
     cell_suffix = ""
     if query_cell_type:
         cell_suffix = f"_{slugify_representation(query_cell_type)}"
-    return (
-        f"{output_prefix}_task{int(task_id):04d}_"
-        f"{query_dataset}_to_{db_dataset}_{representation_slug}{cell_suffix}_detail.csv"
+    return output_filename(
+        output_prefix,
+        f"task{int(task_id):04d}_"
+        f"{query_dataset}_to_{db_dataset}_{representation_slug}{cell_suffix}_detail.csv",
     )
 
 
@@ -239,7 +250,17 @@ def build_truth_matches_and_tasks(
                     )
                     continue
 
-                cell_representations = set(_available_representations(query_data.adata, db_data.adata, settings))
+                cell_representations = set(
+                    _available_representations(
+                        query_data.adata,
+                        db_data.adata,
+                        settings,
+                        query_dataset=query_dataset,
+                        db_dataset=db_dataset,
+                        query_cell_type=query_data.cell_type,
+                        db_cell_type=db_data.cell_type,
+                    )
+                )
                 if settings.include_representations:
                     cell_representations &= set(settings.include_representations)
                 if settings.skip_representations:
@@ -416,6 +437,24 @@ def build_truth_matches_and_tasks(
     if not tasks_df.empty:
         tasks_df = tasks_df.sort_values(["task_id"]).reset_index(drop=True)
 
+    if settings.include_representations:
+        requested_z = settings.include_representations & {
+            DERIVED_POPULATION_ZSCORE_REP,
+            DERIVED_POPULATION_ZSCORE_DATASET_REP,
+        }
+        scheduled = set(tasks_df["representation"]) if not tasks_df.empty else set()
+        missing_z = requested_z - scheduled
+        if missing_z:
+            raise FileNotFoundError(
+                "Requested population z-score representation(s) "
+                f"{sorted(missing_z)} were not scheduled on any pair. "
+                "Either caches are missing or the representation name "
+                "was dropped before precompute (parentheses in sbatch --wrap). "
+                "Use the aliases per_gene_population_zscore_dataset_cell_type / "
+                "per_gene_population_zscore_dataset, and run "
+                "scripts/slurm/run_precompute_population_zscore.sbatch first."
+            )
+
     _log(
         verbose,
         f"[precompute] done total_truth_rows={len(truth_df)} "
@@ -432,9 +471,9 @@ def write_precompute_outputs(
     output_prefix: str,
 ) -> tuple[Path, Path, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
-    truth_path = output_dir / f"{output_prefix}_truth_matches.csv"
-    truth_summary_path = output_dir / f"{output_prefix}_truth_summary.csv"
-    tasks_path = output_dir / f"{output_prefix}_tasks.csv"
+    truth_path = output_dir / output_filename(output_prefix, "truth_matches.csv")
+    truth_summary_path = output_dir / output_filename(output_prefix, "truth_summary.csv")
+    tasks_path = output_dir / output_filename(output_prefix, "tasks.csv")
 
     truth_df.to_csv(truth_path, index=False)
     truth_summary_df.to_csv(truth_summary_path, index=False)
@@ -483,7 +522,7 @@ def write_pair_match_anndatas(
     }
     cache: dict[tuple[str, str], object] = {}
 
-    pair_dir = output_dir / f"{output_prefix}_pair_matches"
+    pair_dir = output_dir / output_filename(output_prefix, "pair_matches")
     pair_dir.mkdir(parents=True, exist_ok=True)
 
     local_truth = truth_df[
@@ -598,14 +637,14 @@ def write_pair_match_anndatas(
             if np.any(var_idx < 0):
                 continue
 
-            obs_index = pd.Index(cell_data.adata.obs_names.astype(str))
-            row_idx = obs_index.get_indexer(obs_ids)
-            valid_mask = row_idx >= 0
-            if not np.any(valid_mask):
+            # Some group_rep h5ads have duplicate obs_names; keep every matching row.
+            obs_names_str = np.asarray(cell_data.adata.obs_names.astype(str))
+            wanted_names = {str(obs_id) for obs_id in obs_ids}
+            selected_rows = np.flatnonzero(np.isin(obs_names_str, list(wanted_names)))
+            if selected_rows.size == 0:
                 continue
 
-            selected_rows = row_idx[valid_mask].astype(np.int64, copy=False)
-            selected_obs_ids = [obs_ids[i] for i, keep in enumerate(valid_mask) if keep]
+            selected_obs_ids = obs_names_str[selected_rows].tolist()
             block = cell_data.adata[selected_rows, var_idx].copy()
 
             block.obs = block.obs.copy()
@@ -622,8 +661,12 @@ def write_pair_match_anndatas(
                     ",".join(col_map.get(sample_key, [])) for sample_key in sample_keys_for_rows
                 ]
 
+            # Disambiguate duplicate obs_names with the source row index.
             block.obs_names = pd.Index(
-                [f"{dataset_name}::{cell_type}::{obs_id}" for obs_id in selected_obs_ids],
+                [
+                    f"{dataset_name}::{cell_type}::{obs_id}::r{int(row)}"
+                    for obs_id, row in zip(selected_obs_ids, selected_rows)
+                ],
                 dtype=object,
             )
             block.raw = None
@@ -845,9 +888,9 @@ def merge_task_outputs(
             summary_overall_df = pd.DataFrame(columns=SUMMARY_OVERALL_COLUMNS)
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    detail_path = output_dir / f"{output_prefix}_detail.csv"
-    summary_cell_path = output_dir / f"{output_prefix}_summary_by_cell_type.csv"
-    summary_overall_path = output_dir / f"{output_prefix}_summary_overall.csv"
+    detail_path = output_dir / output_filename(output_prefix, "detail.csv")
+    summary_cell_path = output_dir / output_filename(output_prefix, "summary_by_cell_type.csv")
+    summary_overall_path = output_dir / output_filename(output_prefix, "summary_overall.csv")
 
     detail_df.to_csv(detail_path, index=False)
     summary_by_cell_df.to_csv(summary_cell_path, index=False)

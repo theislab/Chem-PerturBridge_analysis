@@ -9,6 +9,9 @@ import anndata as ad
 import numpy as np
 import pandas as pd
 
+from .ashr import attach_layers as attach_ashr_layers
+from .ashr import sidecar_root_from_env
+
 REQUIRED_OBS_COLUMNS = ("cell_type", "pubchem_cid", "pert_time_h", "pert_dose_uM")
 
 
@@ -105,6 +108,10 @@ class DatasetStore:
                 loaded = None
             else:
                 loaded = full[mask].copy()
+
+        ashr_root = sidecar_root_from_env()
+        if loaded is not None and ashr_root is not None:
+            attach_ashr_layers(loaded, self.dataset_name, cell_type, ashr_root)
 
         if self.cache_enabled:
             self._cell_cache[cell_type] = loaded

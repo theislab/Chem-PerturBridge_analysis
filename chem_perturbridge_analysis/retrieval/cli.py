@@ -4,7 +4,16 @@ import argparse
 from pathlib import Path
 
 from .config import DEFAULT_DATASET_PATHS, RetrievalSettings, resolve_dataset_paths
-from .engine import ALL_METRICS, DERIVED_SIGNED_REP, DERIVED_Z_REP, run_cross_dataset_retrieval
+from .engine import (
+    ALL_METRICS,
+    DERIVED_DIRECTION_REP,
+    DERIVED_POPULATION_ZSCORE_DATASET_REP,
+    DERIVED_POPULATION_ZSCORE_REP,
+    DERIVED_SIGNED_ADJP_REP,
+    DERIVED_SIGNED_REP,
+    DERIVED_Z_REP,
+    run_cross_dataset_retrieval,
+)
 
 
 def _split_csv(raw: str) -> list[str]:
@@ -49,8 +58,19 @@ def _parse_representations(raw: str) -> frozenset[str]:
     alias_map = {
         "signed": DERIVED_SIGNED_REP,
         "signed_-log10(p)*sign(logfc)": DERIVED_SIGNED_REP,
+        "signed_adjp": DERIVED_SIGNED_ADJP_REP,
+        "signed_-log10(adj.p)*sign(logfc)": DERIVED_SIGNED_ADJP_REP,
         "z": DERIVED_Z_REP,
         "z=sign(logfc)*phi^-1(1-p/2)": DERIVED_Z_REP,
+        "direction": DERIVED_DIRECTION_REP,
+        "sign(logfc)": DERIVED_DIRECTION_REP,
+        "logfc_direction": DERIVED_DIRECTION_REP,
+        "population_zscore": DERIVED_POPULATION_ZSCORE_REP,
+        "per_gene_population_zscore(logfc)": DERIVED_POPULATION_ZSCORE_REP,
+        "population_zscore_cell_type": DERIVED_POPULATION_ZSCORE_REP,
+        "per_gene_population_zscore_dataset_cell_type": DERIVED_POPULATION_ZSCORE_REP,
+        "population_zscore_dataset": DERIVED_POPULATION_ZSCORE_DATASET_REP,
+        "per_gene_population_zscore_dataset": DERIVED_POPULATION_ZSCORE_DATASET_REP,
     }
     reps = []
     for part in raw.split(","):
@@ -73,8 +93,19 @@ def _parse_skip_representations(raw: str) -> frozenset[str]:
     alias_map = {
         "signed": DERIVED_SIGNED_REP,
         "signed_-log10(p)*sign(logfc)": DERIVED_SIGNED_REP,
+        "signed_adjp": DERIVED_SIGNED_ADJP_REP,
+        "signed_-log10(adj.p)*sign(logfc)": DERIVED_SIGNED_ADJP_REP,
         "z": DERIVED_Z_REP,
         "z=sign(logfc)*phi^-1(1-p/2)": DERIVED_Z_REP,
+        "direction": DERIVED_DIRECTION_REP,
+        "sign(logfc)": DERIVED_DIRECTION_REP,
+        "logfc_direction": DERIVED_DIRECTION_REP,
+        "population_zscore": DERIVED_POPULATION_ZSCORE_REP,
+        "per_gene_population_zscore(logfc)": DERIVED_POPULATION_ZSCORE_REP,
+        "population_zscore_cell_type": DERIVED_POPULATION_ZSCORE_REP,
+        "per_gene_population_zscore_dataset_cell_type": DERIVED_POPULATION_ZSCORE_REP,
+        "population_zscore_dataset": DERIVED_POPULATION_ZSCORE_DATASET_REP,
+        "per_gene_population_zscore_dataset": DERIVED_POPULATION_ZSCORE_DATASET_REP,
     }
     reps = []
     for part in raw.split(","):
@@ -117,7 +148,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="all",
         help=(
             "Comma-separated representations to evaluate, or 'all'. "
-            "Can include layer names plus aliases: 'signed', 'z'."
+            "Can include layer names plus aliases: 'signed', 'z', 'direction'."
         ),
     )
     parser.add_argument(
@@ -129,7 +160,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--skip-representations",
         default="",
         help=(
-            "Comma-separated representations to skip (layer names or aliases 'signed','z'). "
+            "Comma-separated representations to skip (layer names or aliases 'signed','z','direction'). "
             "Use 'none' to skip nothing."
         ),
     )

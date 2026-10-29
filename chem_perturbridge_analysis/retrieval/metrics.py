@@ -81,6 +81,18 @@ def spearman_scores_precomputed(
     return out
 
 
+def compute_signed_adjusted(
+    logfc: np.ndarray,
+    adj_pvalues: np.ndarray,
+    p_floor: float,
+) -> np.ndarray:
+    adj_p = np.asarray(adj_pvalues, dtype=np.float64)
+    l = np.asarray(logfc, dtype=np.float64)
+
+    signed = -np.log10(np.clip(adj_p, p_floor, None)) * np.sign(l)
+    return signed.astype(np.float32, copy=False)
+
+
 def compute_signed_and_z(
     logfc: np.ndarray,
     pvalues: np.ndarray,

@@ -49,6 +49,11 @@ class RetrievalSettings:
     )
     logfc_layer: str = "logFC"
     pvalue_layer: str = "P.Value"
+    # Preference order mirrors the overlap retrieval notebook.
+    adj_pvalue_layers: tuple[str, ...] = (
+        "adj.P.Value.within_one_contrast",
+        "adj.P.Value.across_all_contrasts",
+    )
     p_floor: float = 1e-300
     p_clip_high: float = 1.0 - 1e-16
 

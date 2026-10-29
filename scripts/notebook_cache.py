@@ -30,10 +30,12 @@ Run ``python scripts/notebook_cache.py`` to execute the self-tests.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import math
 import os
 from pathlib import Path
-from typing import Callable, Iterable, Optional, Sequence
+from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
 
 import pandas as pd
 
@@ -46,6 +48,8 @@ __all__ = [
     "cached_frame",
     "force_recompute",
     "is_cached",
+    "stable_json_fingerprint",
+    "frame_identity_fingerprint",
 ]
 
 # Read back with inferred dtypes, a key like "00123" becomes the integer 123 and silently
@@ -105,6 +109,108 @@ FORCE_RECOMPUTE: set[str] = (
     else {stage.strip() for stage in _ENV_FORCE.split(",") if stage.strip()}
 )
 CACHE_STATUS: dict[str, str] = {}
+
+
+def _json_ready(value: Any) -> Any:
+    """Convert common analysis objects into a deterministic JSON-compatible value."""
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, Mapping):
+        return {
+            str(key): _json_ready(item)
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        }
+    if isinstance(value, (set, frozenset)):
+        normalized = [_json_ready(item) for item in value]
+        return sorted(
+            normalized,
+            key=lambda item: json.dumps(
+                item,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            ),
+        )
+    if isinstance(value, (list, tuple)):
+        return [_json_ready(item) for item in value]
+    if isinstance(value, float):
+        if math.isnan(value):
+            return {"__float__": "nan"}
+        if math.isinf(value):
+            return {"__float__": "inf" if value > 0 else "-inf"}
+        return value
+    if value is None or isinstance(value, (str, int, bool)):
+        return value
+    item = getattr(value, "item", None)
+    if callable(item):
+        try:
+            scalar = item()
+        except (TypeError, ValueError):
+            pass
+        else:
+            if scalar is not value:
+                return _json_ready(scalar)
+    isoformat = getattr(value, "isoformat", None)
+    if callable(isoformat):
+        try:
+            return isoformat()
+        except (TypeError, ValueError):
+            pass
+    raise TypeError(
+        f"Cannot create a stable JSON fingerprint for {type(value).__name__}"
+    )
+
+
+def stable_json_fingerprint(payload: Any) -> str:
+    """Return a SHA-256 fingerprint of a canonical JSON representation."""
+    serialized = json.dumps(
+        _json_ready(payload),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    )
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def frame_identity_fingerprint(
+    frame: pd.DataFrame,
+    columns: Optional[Sequence[str]] = None,
+    *,
+    order_sensitive: bool = False,
+) -> str:
+    """Fingerprint selected DataFrame row identities without serializing a large TSV.
+
+    The default treats rows as a multiset, which is appropriate for validating that a
+    cached analysis covers the same matched pairs even if their iteration order changes.
+    Set ``order_sensitive=True`` when row order is part of the stage contract.
+    """
+    selected_columns = list(frame.columns if columns is None else columns)
+    missing_columns = set(selected_columns) - set(frame.columns)
+    if missing_columns:
+        raise KeyError(f"Frame identity columns are missing: {sorted(missing_columns)!r}")
+    selected = frame.loc[:, selected_columns]
+    row_hashes = pd.util.hash_pandas_object(
+        selected,
+        index=False,
+        categorize=True,
+    ).to_numpy(dtype="<u8", copy=True)
+    if not order_sensitive:
+        row_hashes.sort()
+    digest = hashlib.sha256()
+    digest.update(
+        json.dumps(
+            {
+                "columns": selected_columns,
+                "n_rows": int(len(selected)),
+                "order_sensitive": bool(order_sensitive),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    )
+    digest.update(row_hashes.tobytes())
+    return digest.hexdigest()
 
 
 def force_recompute(*stages: str, replace: bool = False) -> set[str]:

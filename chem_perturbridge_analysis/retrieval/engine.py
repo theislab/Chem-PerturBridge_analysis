@@ -18,6 +18,7 @@ from .data import (
     load_cell_type_data,
 )
 from .metrics import (
+    compute_signed_adjusted,
     compute_signed_and_z,
     cosine_scores,
     mrrmse_scores,
@@ -25,9 +26,23 @@ from .metrics import (
     rank_center_norm_rows,
     spearman_scores_precomputed,
 )
+from .zscore import (
+    PopulationZScoreContext,
+    build_dataset_population_context,
+    build_population_context,
+    has_cell_type_population_cache,
+    has_dataset_population_cache,
+    has_population_inputs,
+    population_valid_gene_mask,
+    standardize_selected,
+)
 
 DERIVED_SIGNED_REP = "signed_-log10(p)*sign(logFC)"
+DERIVED_SIGNED_ADJP_REP = "signed_-log10(adj.p)*sign(logFC)"
 DERIVED_Z_REP = "z=sign(logFC)*Phi^-1(1-p/2)"
+DERIVED_DIRECTION_REP = "sign(logFC)"
+DERIVED_POPULATION_ZSCORE_REP = "per_gene_population_zscore(logFC)"
+DERIVED_POPULATION_ZSCORE_DATASET_REP = "per_gene_population_zscore_dataset"
 
 ALL_METRICS = ("cosine", "pearson", "spearman", "mrrmse")
 SIMILARITY_METRICS = {"cosine", "pearson", "spearman"}
@@ -54,8 +69,24 @@ def _dense_layer_subset(adata: ad.AnnData, layer: str, var_idx: np.ndarray) -> n
     return np.asarray(dense, dtype=np.float32)
 
 
-def _available_representations(
+def _resolve_adj_pvalue_layer(
     query_adata: ad.AnnData, db_adata: ad.AnnData, settings: RetrievalSettings
+) -> Optional[str]:
+    """First preferred adjusted p-value layer present on both sides, else None."""
+    for layer in settings.adj_pvalue_layers:
+        if layer in query_adata.layers and layer in db_adata.layers:
+            return layer
+    return None
+
+
+def _available_representations(
+    query_adata: ad.AnnData,
+    db_adata: ad.AnnData,
+    settings: RetrievalSettings,
+    query_dataset: str = "",
+    db_dataset: str = "",
+    query_cell_type: str = "",
+    db_cell_type: str = "",
 ) -> list[str]:
     common_layers = sorted(
         (set(query_adata.layers.keys()) & set(db_adata.layers.keys()))
@@ -70,10 +101,69 @@ def _available_representations(
             settings.pvalue_layer in db_adata.layers,
         ]
     )
+    if settings.logfc_layer in query_adata.layers and settings.logfc_layer in db_adata.layers:
+        reps.append(DERIVED_DIRECTION_REP)
     if has_derived:
         reps.append(DERIVED_SIGNED_REP)
         reps.append(DERIVED_Z_REP)
+    has_logfc = settings.logfc_layer in query_adata.layers and settings.logfc_layer in db_adata.layers
+    if has_logfc and _resolve_adj_pvalue_layer(query_adata, db_adata, settings) is not None:
+        reps.append(DERIVED_SIGNED_ADJP_REP)
+    if has_population_inputs(query_adata, settings.logfc_layer) and has_population_inputs(
+        db_adata, settings.logfc_layer
+    ):
+        if (
+            query_dataset
+            and db_dataset
+            and query_cell_type
+            and db_cell_type
+            and has_cell_type_population_cache(query_dataset, query_cell_type)
+            and has_cell_type_population_cache(db_dataset, db_cell_type)
+        ):
+            reps.append(DERIVED_POPULATION_ZSCORE_REP)
+        if (
+            query_dataset
+            and db_dataset
+            and has_dataset_population_cache(query_dataset)
+            and has_dataset_population_cache(db_dataset)
+        ):
+            reps.append(DERIVED_POPULATION_ZSCORE_DATASET_REP)
     return reps
+
+
+_POPULATION_CONTEXT_CACHE: dict[tuple[str, str], PopulationZScoreContext] = {}
+_DATASET_POPULATION_CONTEXT_CACHE: dict[tuple[str, str], PopulationZScoreContext] = {}
+
+
+def _population_context(
+    cell_data: CellTypeData, settings: RetrievalSettings
+) -> PopulationZScoreContext:
+    key = (cell_data.dataset_name, cell_data.cell_type)
+    cached = _POPULATION_CONTEXT_CACHE.get(key)
+    if cached is None:
+        cached = build_population_context(
+            cell_data.adata,
+            dataset_name=cell_data.dataset_name,
+            cell_type=cell_data.cell_type,
+            layer_name=settings.logfc_layer,
+        )
+        _POPULATION_CONTEXT_CACHE[key] = cached
+    return cached
+
+
+def _dataset_population_context(
+    cell_data: CellTypeData, settings: RetrievalSettings
+) -> PopulationZScoreContext:
+    key = (cell_data.dataset_name, cell_data.cell_type)
+    cached = _DATASET_POPULATION_CONTEXT_CACHE.get(key)
+    if cached is None:
+        cached = build_dataset_population_context(
+            cell_data.adata,
+            dataset_name=cell_data.dataset_name,
+            layer_name=settings.logfc_layer,
+        )
+        _DATASET_POPULATION_CONTEXT_CACHE[key] = cached
+    return cached
 
 
 def _materialize_representation(
@@ -91,6 +181,59 @@ def _materialize_representation(
         x_query = _dense_layer_subset(query_adata, representation, q_idx)
         x_db = _dense_layer_subset(db_adata, representation, d_idx)
         return x_query, x_db
+
+    if representation == DERIVED_DIRECTION_REP:
+        q_logfc = _dense_layer_subset(query_adata, settings.logfc_layer, q_idx)
+        d_logfc = _dense_layer_subset(db_adata, settings.logfc_layer, d_idx)
+        return np.sign(q_logfc).astype(np.float32, copy=False), np.sign(d_logfc).astype(
+            np.float32, copy=False
+        )
+
+    if representation in (
+        DERIVED_POPULATION_ZSCORE_REP,
+        DERIVED_POPULATION_ZSCORE_DATASET_REP,
+    ):
+        if representation == DERIVED_POPULATION_ZSCORE_DATASET_REP:
+            query_ctx = _dataset_population_context(query_data, settings)
+            db_ctx = _dataset_population_context(context.db_data, settings)
+        else:
+            query_ctx = _population_context(query_data, settings)
+            db_ctx = _population_context(context.db_data, settings)
+        q_stat_idx, q_valid = population_valid_gene_mask(query_ctx, q_idx)
+        d_stat_idx, d_valid = population_valid_gene_mask(db_ctx, d_idx)
+
+        q_logfc = _dense_layer_subset(query_adata, settings.logfc_layer, q_idx)
+        d_logfc = _dense_layer_subset(db_adata, settings.logfc_layer, d_idx)
+        # Same gene eligibility as the overlap notebooks: finite on both sides, then
+        # restricted to genes whose population transform is defined on both sides.
+        finite_gene_mask = np.isfinite(q_logfc).all(axis=0) & np.isfinite(d_logfc).all(axis=0)
+        gene_mask = finite_gene_mask & q_valid & d_valid
+        if int(gene_mask.sum()) < 2:
+            raise ValueError(
+                "Population z-score left fewer than 2 usable genes for "
+                f"{query_data.dataset_name}:{query_data.cell_type} -> "
+                f"{context.db_data.dataset_name}:{context.db_cell_type}"
+            )
+        return (
+            standardize_selected(q_logfc, query_ctx, q_stat_idx, gene_mask),
+            standardize_selected(d_logfc, db_ctx, d_stat_idx, gene_mask),
+        )
+
+    if representation == DERIVED_SIGNED_ADJP_REP:
+        adj_layer = _resolve_adj_pvalue_layer(query_adata, db_adata, settings)
+        if adj_layer is None:
+            raise ValueError(
+                f"None of {settings.adj_pvalue_layers} are present in both "
+                f"{query_data.dataset_name} and {context.db_data.dataset_name}."
+            )
+        q_logfc = _dense_layer_subset(query_adata, settings.logfc_layer, q_idx)
+        q_adj_p = _dense_layer_subset(query_adata, adj_layer, q_idx)
+        d_logfc = _dense_layer_subset(db_adata, settings.logfc_layer, d_idx)
+        d_adj_p = _dense_layer_subset(db_adata, adj_layer, d_idx)
+        return (
+            compute_signed_adjusted(q_logfc, q_adj_p, p_floor=settings.p_floor),
+            compute_signed_adjusted(d_logfc, d_adj_p, p_floor=settings.p_floor),
+        )
 
     if representation in (DERIVED_SIGNED_REP, DERIVED_Z_REP):
         q_logfc = _dense_layer_subset(query_adata, settings.logfc_layer, q_idx)
@@ -136,6 +279,50 @@ def _score_candidates_for_query(
     return scores
 
 
+def _source_layers_for_representations(
+    query_adata: ad.AnnData,
+    db_adata: ad.AnnData,
+    representations: set[str],
+    settings: RetrievalSettings,
+) -> list[str]:
+    """Layers that the selected representations read from."""
+    layers: set[str] = set()
+    for representation in representations:
+        if representation in query_adata.layers and representation in db_adata.layers:
+            layers.add(representation)
+        elif representation in (
+            DERIVED_DIRECTION_REP,
+            DERIVED_POPULATION_ZSCORE_REP,
+            DERIVED_POPULATION_ZSCORE_DATASET_REP,
+        ):
+            layers.add(settings.logfc_layer)
+        elif representation in (DERIVED_SIGNED_REP, DERIVED_Z_REP):
+            layers.update({settings.logfc_layer, settings.pvalue_layer})
+        elif representation == DERIVED_SIGNED_ADJP_REP:
+            layers.add(settings.logfc_layer)
+            adj_layer = _resolve_adj_pvalue_layer(query_adata, db_adata, settings)
+            if adj_layer is not None:
+                layers.add(adj_layer)
+    return sorted(layers)
+
+
+def _finite_gene_mask(
+    query_adata: ad.AnnData,
+    db_adata: ad.AnnData,
+    query_var_idx: np.ndarray,
+    db_var_idx: np.ndarray,
+    representations: set[str],
+    settings: RetrievalSettings,
+) -> np.ndarray:
+    mask = np.ones(query_var_idx.size, dtype=bool)
+    for layer in _source_layers_for_representations(
+        query_adata, db_adata, representations, settings
+    ):
+        mask &= np.isfinite(_dense_layer_subset(query_adata, layer, query_var_idx)).all(axis=0)
+        mask &= np.isfinite(_dense_layer_subset(db_adata, layer, db_var_idx)).all(axis=0)
+    return mask
+
+
 def _build_pair_contexts(
     query_data: CellTypeData,
     db_store: DatasetStore,
@@ -159,12 +346,53 @@ def _build_pair_contexts(
         if common_genes.size == 0:
             continue
 
-        pair_reps = set(_available_representations(query_data.adata, db_data.adata, settings))
+        available_reps = set(
+            _available_representations(
+                query_data.adata,
+                db_data.adata,
+                settings,
+                query_dataset=query_data.dataset_name,
+                db_dataset=db_data.dataset_name,
+                query_cell_type=query_data.cell_type,
+                db_cell_type=db_data.cell_type,
+            )
+        )
         if settings.include_representations:
-            pair_reps &= settings.include_representations
+            requested_z = settings.include_representations & {
+                DERIVED_POPULATION_ZSCORE_REP,
+                DERIVED_POPULATION_ZSCORE_DATASET_REP,
+            }
+            missing_z = requested_z - available_reps
+            if missing_z:
+                raise FileNotFoundError(
+                    "Requested population z-score representation(s) "
+                    f"{sorted(missing_z)} but caches are missing for "
+                    f"{query_data.dataset_name}:{query_data.cell_type} -> "
+                    f"{db_data.dataset_name}:{db_cell_type}. "
+                    "Run scripts/slurm/run_precompute_population_zscore.sbatch first."
+                )
+            pair_reps = available_reps & settings.include_representations
+        else:
+            pair_reps = available_reps
         if settings.skip_representations:
             pair_reps -= settings.skip_representations
         if not pair_reps:
+            continue
+
+        query_var_idx = query_data.adata.var_names.get_indexer(common_genes)
+        db_var_idx = db_data.adata.var_names.get_indexer(common_genes)
+
+        # Keep only genes that are finite on both sides in every scored source layer.
+        # Without this a single all-NaN gene makes every row non-finite, and the pair
+        # yields no scores at all.
+        finite_gene_mask = _finite_gene_mask(
+            query_data.adata, db_data.adata, query_var_idx, db_var_idx, pair_reps, settings
+        )
+        n_dropped = int(finite_gene_mask.size - np.count_nonzero(finite_gene_mask))
+        if n_dropped:
+            query_var_idx = query_var_idx[finite_gene_mask]
+            db_var_idx = db_var_idx[finite_gene_mask]
+        if query_var_idx.size < 2:
             continue
 
         contexts.append(
@@ -172,9 +400,9 @@ def _build_pair_contexts(
                 db_cell_type=db_cell_type,
                 db_data=db_data,
                 representations=pair_reps,
-                query_var_idx=query_data.adata.var_names.get_indexer(common_genes),
-                db_var_idx=db_data.adata.var_names.get_indexer(common_genes),
-                n_genes=int(common_genes.size),
+                query_var_idx=query_var_idx,
+                db_var_idx=db_var_idx,
+                n_genes=int(query_var_idx.size),
             )
         )
     return contexts
