@@ -2,11 +2,6 @@
 
 Cross-dataset retrieval benchmark for perturbation-response signatures.
 
-Analyses added in response to the NeurIPS review — per-peer and target-side baselines, and
-dose-threshold sensitivity — are documented separately in
-[REVIEWER_ADDITIONS.md](REVIEWER_ADDITIONS.md), which maps each reviewer point to the file
-that addresses it.
-
 ## Reproducibility
 ### Environment
 
