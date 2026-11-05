@@ -9,6 +9,7 @@ dependencies = [
     "jupyterlab>=4.5.4",
     "matplotlib>=3.9.4",
     "numpy>=2.0.2",
+    "openpyxl",
     "pandas>=2.3.3",
     "scipy>=1.13.1",
     "seaborn>=0.13.2",
