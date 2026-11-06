@@ -10,8 +10,8 @@ The original repository has three primary branches:
 
 | Branch | Purpose |
 |---|---|
-| [main](https://github.com/theislab/Chem-PerturBridge_analysis/tree/main) | Cross-dataset analyses and repository entry point. |
-| replicates | Replicate analyses, building on the fork at commit [46a72c5](https://github.com/elmella/Chem-PerturBridge_analysis/commit/46a72c504376d6168535ca2fed2c0d8baaeb875b). |
+| [main](https://github.com/theislab/Chem-PerturBridge_analysis/tree/main) | Repository entry point, cross-dataset analyses, summaries of replicate results, and manuscript tables/figures/supplementaries. |
+| [replicates](https://github.com/theislab/Chem-PerturBridge_analysis/tree/replicates) | Replicate analyses, building on the fork at commit [46a72c5](https://github.com/elmella/Chem-PerturBridge_analysis/commit/46a72c504376d6168535ca2fed2c0d8baaeb875b). |
 | [archive](https://github.com/theislab/Chem-PerturBridge_analysis/tree/archive) | Original analyses accompanying [arXiv v1](https://arxiv.org/abs/2605.31522v1). |
 
 ### Fork
@@ -53,6 +53,7 @@ The current analyses build on scripts from two branches of the [fork](https://gi
 
 - [Notebooks](notebooks/README.md)
 - [Tables and figures](tables_and_figures/README.md)
+- [Supplementary files](supplementary/README.md)
 
 ## Environment
 
