@@ -452,7 +452,7 @@ def build_truth_matches_and_tasks(
                 "was dropped before precompute (parentheses in sbatch --wrap). "
                 "Use the aliases per_gene_population_zscore_dataset_cell_type / "
                 "per_gene_population_zscore_dataset, and run "
-                "scripts/slurm/run_precompute_population_zscore.sbatch first."
+                "bash scripts/slurm/run_precompute_population_zscore.sh first."
             )
 
     _log(

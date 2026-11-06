@@ -369,7 +369,7 @@ def _build_pair_contexts(
                     f"{sorted(missing_z)} but caches are missing for "
                     f"{query_data.dataset_name}:{query_data.cell_type} -> "
                     f"{db_data.dataset_name}:{db_cell_type}. "
-                    "Run scripts/slurm/run_precompute_population_zscore.sbatch first."
+                    "Run bash scripts/slurm/run_precompute_population_zscore.sh first."
                 )
             pair_reps = available_reps & settings.include_representations
         else:

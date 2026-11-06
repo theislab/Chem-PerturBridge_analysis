@@ -28,7 +28,7 @@ from scripts.population_zscore import (
     unique_gene_index,
 )
 
-DEFAULT_Z_SCORE_STATS_ROOT = Path("results/w4_population_zscore_stats")
+DEFAULT_Z_SCORE_STATS_ROOT = Path("results/population_zscore_stats")
 
 POPULATION_OBS_COLUMNS = ("is_control", "pubchem_cid", "pert_time_h", "pert_dose_uM")
 
