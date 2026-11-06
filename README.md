@@ -1,9 +1,62 @@
 # Chem-PerturBridge_analysis
 
-Cross-dataset retrieval benchmark for perturbation-response signatures.
+## Overview
 
-## Reproducibility
-### Environment
+Cross-dataset and replicate analyses of perturbation-response signatures.
+
+### Repository branches
+
+The original repository has three primary branches:
+
+| Branch | Purpose |
+|---|---|
+| [main](https://github.com/theislab/Chem-PerturBridge_analysis/tree/main) | Cross-dataset analyses and repository entry point. |
+| replicates | Replicate analyses, building on the fork at commit [46a72c5](https://github.com/elmella/Chem-PerturBridge_analysis/commit/46a72c504376d6168535ca2fed2c0d8baaeb875b). |
+| [archive](https://github.com/theislab/Chem-PerturBridge_analysis/tree/archive) | Original analyses accompanying [arXiv v1](https://arxiv.org/abs/2605.31522v1). |
+
+### Fork
+
+The current analyses build on scripts from two branches of the [fork](https://github.com/elmella/Chem-PerturBridge_analysis):
+
+| Branch | Purpose | Code reference |
+|---|---|---|
+| [reviewer-additions-baselines](https://github.com/elmella/Chem-PerturBridge_analysis/tree/reviewer-additions-baselines) | Peer-baseline comparisons and z-score representations. | [e323b36](https://github.com/elmella/Chem-PerturBridge_analysis/commit/e323b360280580093a50a910cdb0dc902755c57e) |
+| [cigs-production-hardening](https://github.com/elmella/Chem-PerturBridge_analysis/tree/cigs-production-hardening) | Extended replicate analyses and optimized cross-dataset analyses. | [46a72c5](https://github.com/elmella/Chem-PerturBridge_analysis/commit/46a72c504376d6168535ca2fed2c0d8baaeb875b) |
+
+## What Is Implemented
+
+- Dataset loading and cross-dataset overlap matching for `l1000_phase1`, `l1000_phase2`, `tahoe`, `cigs_mce`, `novartis_batch_2500`, `vcpi_0001`, `cigs_tcm`, `vcpi_0002`, `gdpx2`, `sciplex`, `dilimap_train_val` and `op3`
+- Cross-dataset DEG, direction and whole-signature agreement
+- Per-cell-type retrieval with gene-overlap alignment for each query/database cell-type pair
+- Global ranking against all database cell types in the unsplit workflow, or within matching cell types in the split workflow
+- Representation-sweep ground-truth matching based on exact `cell_type` and `pubchem_cid`, with nearest `pert_time_h` and nearest `log(pert_dose_uM)` (falling back to linear dose distance for non-positive doses)
+- Layer-wise scoring over shared layers, excluding:
+  - `CI.L`, `CI.R`, `stdev.scaled`, `stdev.unscaled`, `AveExpr`
+  - `adj.P.Value.across_all_contrasts`, `adj.P.Value.within_one_contrast`
+- Representations, depending on the workflow:
+  - logFC
+  - Moderated t-statistics
+  - Direction: `sign(logFC)`
+  - Signed p-values: `-log10(p) * sign(logFC)`
+  - P-value-derived z-scores: `sign(logFC) * Phi^-1(1 - p/2)`
+  - Population z-scores at dataset and dataset × cell-type levels
+  - ASHR posterior means
+- Similarity and distance metrics, depending on the workflow: `cosine`, `pearson`, `spearman`, `negative_l2` and `mrrmse`
+- Baseline comparisons:
+  - Centroid baseline
+  - Individual-peer baselines
+- Bootstrap confidence intervals
+- Normalized retrieval rank in `[0, 1]`, where 1 is the best
+- Creation of summary tables and dose-sensitivity analyses
+
+## Notebooks and tables
+
+- [Notebooks](notebooks/README.md)
+- [Tables and figures](tables_and_figures/README.md)
+
+## Environment
+
+### Python
 
 The reproducible Python environment is defined by `pyproject.toml`,
 `uv.lock`, and `.python-version`. The checked-in lockfile recreates the
@@ -36,126 +89,97 @@ Most batch scripts in this repository call `uv run`, so they can also be
 launched without manually activating `.venv` as long as `uv sync --locked` has
 been run from the repository root.
 
-### Execution
-1. `scripts/build_dataset_summary.py` for table 1 content
-2. `scripts/overlap_filtered_h5ads.py` for getting pseudobulks of overlapping samples (excluding those overlapping only across l1000 phases as there are so many of these that they would dominate and differ from the other considered significantly)
-3. `notebooks/plot_overlap_heatmaps.ipynb` for cross-dataset overlap plots in fig1. In each dataset pair, we skip contexts that have less than 10 compounds shared between the two.
-4. `notebooks/overlap_group_rep_deg_metrics.ipynb`, `notebooks/overlap_group_rep_signature_similarity.ipynb` and `notebooks/overlap_group_rep_retrieval_metrics.ipynb` to plot cross-dataset agreement.
-5. `SKIP_EXISTING_DATASETS=1 EXISTING_RESULTS_DIR=./results/replicate_signature_similarity_sep_rep OUTPUT_DIR=./results/replicate_signature_similarity_sep_rep_combined COMPUTE_BASELINE_METRICS=1 COMPUTE_DEG_METRICS=1 scripts/slurm/run_replicate_signature_similarity.sh`, `notebooks/replicate_signature_similarity.ipynb` and `notebooks/replicate_deg_metrics.ipynb` to compute the cross-replicate agreement.
+### R
 
-## What Is Implemented
+ASHR preparation also requires R and `ashr`, installed separately from the
+`uv` Python environment. Create the R environment once using the tested versions:
 
-- Dataset loading for `sciplex`, `tahoe`, `l1000_phase1`, `l1000_phase2` using paths from `notebooks/load_data.ipynb`.
-- Per-cell-type retrieval with gene-overlap alignment for each query/db cell-type pair.
-- Global ranking against all db cell types (including non-matching cell types) for each query sample.
-- Ground-truth matching based on exact `cell_type` + `pubchem_cid`, with nearest `pert_time_h` and nearest `log(pert_dose_uM)` (falling back to linear dose distance for non-positive doses).
-- Layer-wise scoring over all shared layers except:
-  - `CI.L`, `CI.R`, `stdev.scaled`, `stdev.unscaled`, `AveExpr`
-  - `adj.P.Value.across_all_contrasts`, `adj.P.Value.within_one_contrast`
-- Additional derived representations:
-  - `-log10(p) * sign(logFC)`
-  - `sign(logFC) * Phi^-1(1 - p/2)`
-- Similarity/distance metrics:
-  - `cosine`, `pearson`, `spearman`, `mrrmse`
-- Rank normalization to `[0, 1]`:
-  - `rank_normalized` (0 is best)
-  - `retrieval_score` (1 is best)
+```bash
+mamba create -n cpb-ashr --override-channels -c conda-forge r-base=4.2.3 r-ashr=2.2_63
+```
 
 ## Run
 
-```bash
-python -m chem_perturbridge_analysis.retrieval.cli --verbose
-```
+Run the following commands from the repository root.
 
-Outputs are written to:
+### Data preparation
 
-- `results/cross_dataset_retrieval_detail.csv`
-- `results/cross_dataset_retrieval_summary_by_cell_type.csv`
-- `results/cross_dataset_retrieval_summary_overall.csv`
+Requires processed pseudobulk H5ADs and per-cell-type DEG results at the configured input paths.
 
-Verbose mode now logs progress at pair, cell-type, and representation levels (including elapsed time and rows produced).
-
-## Useful Options
+Build the dataset summary and overlap-filtered inputs:
 
 ```bash
-python -m chem_perturbridge_analysis.retrieval.cli \
-  --query-datasets sciplex,tahoe \
-  --db-datasets l1000_phase1,l1000_phase2 \
-  --cell-types CVCL_0002,CVCL_0063 \
-  --representations logFC,P.Value,signed,z \
-  --metrics cosine,mrrmse \
-  --skip-representations P.Value \
-  --output-prefix my_run \
-  --verbose
+bash scripts/slurm/run_build_dataset_summary.sh
+bash scripts/slurm/run_build_overlap_filtered_h5ads.sh
 ```
 
-Limit compute for faster runs:
+Prepare population z-score statistics for agreement, retrieval and the representation sweep:
 
 ```bash
-python -m chem_perturbridge_analysis.retrieval.cli \
-  --representations logFC,signed \
-  --metrics cosine
+bash scripts/slurm/run_precompute_population_zscore.sh
 ```
 
-Override data paths:
+The statistics are stored in `results/population_zscore_stats/` and reused across these workflows.
+
+### Agreement and retrieval
+
+Run DEG agreement, whole-signature agreement and retrieval using logFC, moderated t-statistics and both z-score scopes. Retrieval also includes direction-based analysis.
 
 ```bash
-python -m chem_perturbridge_analysis.retrieval.cli \
-  --dataset-path sciplex=/my/sciplex/results \
-  --dataset-path l1000_phase1=/my/l1000_phase1/results
+bash scripts/slurm/run_overlap_group_rep_deg_metrics.sh
+bash scripts/slurm/run_overlap_group_rep_signature_similarity.sh
+bash scripts/slurm/run_overlap_group_rep_retrieval_metrics.sh
 ```
 
-## Visualization
+### Representation sweep
 
-Use `notebooks/visualize_retrieval_results.ipynb` to visualize retrieval outputs (`*_detail.csv`, `*_summary_by_cell_type.csv`, `*_summary_overall.csv`) for any run prefix (default in notebook: `my_run_fast`).
+Compare 11 representations across six datasets using cosine, Pearson and MRRMSE.
 
-## Parallel Slurm Workflow
+**Preparation**
 
-For large runs, use the parallel pipeline:
-
-1. Precompute true cell line-drug matches and generate task matrix (`pair x representation`).
-2. Run one task per row of the matrix (ideal for Slurm array jobs).
-3. Merge all task outputs into the final CSVs.
-
-Precompute now also writes one AnnData per dataset pair with matches:
-
-- `results/<run_dir>/<prefix>_pair_matches/<dataset_a>__<dataset_b>_matches.h5ad`
-- each file contains matched samples from both datasets on shared genes and includes
-  directional obs columns `<dataset_a>_<dataset_b>_match_id` and `<dataset_b>_<dataset_a>_match_id`.
-
-### Python CLI Stages
+- Prepare population z-score statistics as described in [**Data preparation**](#data-preparation).
+- Then prepare ASHR representations (see [Environment](#environment) for installation):
 
 ```bash
-# Stage 1: precompute truth matches + task matrix
-python -m chem_perturbridge_analysis.retrieval.parallel_cli precompute \
-  --output-dir results/full \
-  --output-prefix my_run_fast \
-  --query-datasets all \
-  --db-datasets all \
-  --representations all \
-  --verbose
-
-# Stage 2: run one task (task_id usually from Slurm array index)
-python -m chem_perturbridge_analysis.retrieval.parallel_cli run-task \
-  --task-file results/full/my_run_fast_tasks.csv \
-  --task-id 1 \
-  --output-dir results/full/tasks \
-  --output-prefix my_run_fast \
-  --metrics all \
-  --verbose
-
-# Stage 3: merge all task outputs
-python -m chem_perturbridge_analysis.retrieval.parallel_cli merge \
-  --task-file results/full/my_run_fast_tasks.csv \
-  --task-output-dir results/full/tasks \
-  --output-dir results/full \
-  --output-prefix my_run_fast \
-  --verbose
+mamba activate cpb-ashr
+export RSCRIPT="$CONDA_PREFIX/bin/Rscript"
+bash scripts/slurm/run_precompute_ashr.sh
 ```
 
-### Slurm Launcher
+**Run**
 
-`scripts/slurm/run_retrieval_parallel.sh` orchestrates all three stages with `sbatch -W` and an array for stage 2.
+```bash
+bash scripts/slurm/run_representation_sweep.sh
+```
+
+The launcher runs matching, parallel scoring, merging and ranking-table generation.
+
+
+## Slurm configuration
+
+The launchers submit jobs with `sbatch` and wait for completion.
+
+### Agreement and retrieval
+
+Example: run logFC and moderated-t signature agreement:
+
+```bash
+ARRAY=0,3 CPUS_PER_TASK=8 MEM=500G \
+  bash scripts/slurm/run_overlap_group_rep_signature_similarity.sh
+```
+
+Useful environment variables:
+
+- `PARTITION`, `QOS`, `CPUS_PER_TASK`, `MEM`, `TIME`: job resources.
+- `UV_BIN`: `uv` executable; default `uv`.
+- `ARRAY`: select computations:
+  - Agreement: `0` raw, `1` dataset z-score, `2` dataset × cell-type z-score, `3` moderated-t.
+  - Retrieval: `0` raw, `1` direction, `2` moderated-t, `3` dataset z-score, `4` dataset × cell-type z-score.
+
+### Representation sweep
+
+`scripts/slurm/run_representation_sweep.sh` orchestrates matching, parallel scoring,
+and merging with ranking-table generation. Stage 2 uses a Slurm array.
 
 Example:
 
@@ -163,17 +187,80 @@ Example:
 QOS=cpu_normal \
 PARTITION=cpu_p \
 UV_BIN=uv \
-OUTPUT_PREFIX=my_run_fast \
-bash scripts/slurm/run_retrieval_parallel.sh
+RUN_TAG=my_run \
+bash scripts/slurm/run_representation_sweep.sh
 ```
 
 Useful environment variables:
 
-- `QUERY_DATASETS`, `DB_DATASETS` (comma-separated names or `all`)
-- `REPRESENTATIONS`, `SKIP_REPRESENTATIONS`
-- `METRICS`
-- `CELL_TYPES`
-- `INCLUDE_SELF_DATASET` (`0`/`1`)
-- `UV_BIN` (default: `uv`)
-- `DATASET_PATH_ARGS` (e.g. `--dataset-path sciplex=/path --dataset-path tahoe=/path`)
-- `TASK_MEM`, `PREP_MEM`, `MERGE_MEM` (defaults set to `200G`)
+- `QUERY_DATASETS`, `DB_DATASETS`: comma-separated names or `all`.
+- `REPRESENTATIONS`, `SKIP_REPRESENTATIONS`: representations to include or exclude.
+- `METRICS`, `CELL_TYPES`: scoring metrics and cell types.
+- `INCLUDE_SELF_DATASET`: `0`/`1`; default `0`.
+- `RUN_TAG`: names the output folder under `results/representation_sweep/`.
+- `DATASET_PATH_ARGS`: dataset-path overrides, e.g. `--dataset-path sciplex=/path`.
+- `PREP_MEM`, `TASK_MEM`, `MERGE_MEM`: defaults `200G`, `100G`, `200G`.
+- `PREP_TIME`, `TASK_TIME`, `MERGE_TIME`: stage time limits.
+
+
+## Python CLI examples
+
+Run from the repository root with the input data prepared.
+
+### Retrieval
+
+Run logFC and moderated-t retrieval using cosine and negative L2:
+
+```bash
+uv run python scripts/run_overlap_group_rep_retrieval_metrics.py \
+  --datasets sciplex,tahoe \
+  --compute raw,moderated-t \
+  --similarities cosine negative_l2 \
+  --workers 4 \
+  --run-tag example
+```
+
+### Representation sweep
+
+Run the same stages as the Slurm launcher with selected datasets and representations, scoring tasks sequentially:
+
+```bash
+set -e
+SWEEP_DIR=results/representation_sweep/example
+
+# 1. Prepare matches and tasks; select representations.
+uv run python -m chem_perturbridge_analysis.retrieval.parallel_cli precompute \
+  --query-datasets sciplex,tahoe \
+  --db-datasets l1000_phase1,l1000_phase2 \
+  --representations logFC,t,signed,z \
+  --split-by-cell-type \
+  --output-dir "$SWEEP_DIR" \
+  --output-prefix ""
+
+# 2. Score each task; select metrics.
+SWEEP_TASK_IDS=$(uv run python -c \
+  'import pandas as pd, sys; print(*pd.read_csv(sys.argv[1])["task_id"])' \
+  "$SWEEP_DIR/tasks.csv")
+
+for task_id in $SWEEP_TASK_IDS; do
+  uv run python -m chem_perturbridge_analysis.retrieval.parallel_cli run-task \
+    --task-file "$SWEEP_DIR/tasks.csv" \
+    --task-id "$task_id" \
+    --metrics cosine,mrrmse \
+    --output-dir "$SWEEP_DIR/tasks" \
+    --output-prefix ""
+done
+
+# 3. Merge results.
+uv run python -m chem_perturbridge_analysis.retrieval.parallel_cli merge \
+  --task-file "$SWEEP_DIR/tasks.csv" \
+  --task-output-dir "$SWEEP_DIR/tasks" \
+  --output-dir "$SWEEP_DIR" \
+  --output-prefix "" \
+  --strict-missing
+
+# 4. Summarize results.
+uv run python tables_and_figures/agreement_retrieval/scripts/summarize_representation_sweep.py \
+  --results-dir "$SWEEP_DIR" \
+  --latex-dir tables_and_figures/agreement_retrieval/results/example/representation_sweep
+```
