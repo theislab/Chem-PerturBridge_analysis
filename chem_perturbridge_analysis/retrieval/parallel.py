@@ -16,6 +16,7 @@ from .engine import (
     DERIVED_POPULATION_ZSCORE_DATASET_REP,
     DERIVED_POPULATION_ZSCORE_REP,
     _available_representations,
+    check_requested_ashr,
     run_cross_dataset_retrieval,
     summarize_retrieval,
 )
@@ -262,6 +263,13 @@ def build_truth_matches_and_tasks(
                     )
                 )
                 if settings.include_representations:
+                    check_requested_ashr(
+                        set(settings.include_representations)
+                        - set(settings.skip_representations),
+                        cell_representations,
+                        f"{query_dataset}:{query_data.cell_type} -> "
+                        f"{db_dataset}:{db_data.cell_type}",
+                    )
                     cell_representations &= set(settings.include_representations)
                 if settings.skip_representations:
                     cell_representations -= set(settings.skip_representations)
@@ -438,7 +446,7 @@ def build_truth_matches_and_tasks(
         tasks_df = tasks_df.sort_values(["task_id"]).reset_index(drop=True)
 
     if settings.include_representations:
-        requested_z = settings.include_representations & {
+        requested_z = (settings.include_representations - settings.skip_representations) & {
             DERIVED_POPULATION_ZSCORE_REP,
             DERIVED_POPULATION_ZSCORE_DATASET_REP,
         }

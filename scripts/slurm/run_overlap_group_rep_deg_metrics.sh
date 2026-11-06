@@ -75,9 +75,11 @@ exec "${UV_BIN}" run python scripts/run_overlap_group_rep_deg_metrics.py "${args
 BASH
 )"
 
+LOGS_DIR="${LOGS_DIR:-.}"
+(cd "${REPO}" && mkdir -p "${LOGS_DIR}")
+
 # Resource overrides use the same defaults as the previous array job.
 SLURM_ARGS=(
-  -W
   --job-name=deg_t6
   --account="${ACCOUNT:-icb}"
   --partition="${PARTITION:-cpu_p}"
@@ -86,10 +88,39 @@ SLURM_ARGS=(
   --mem="${MEM:-500G}"
   --time="${TIME:-1-00:00:00}"
   --array="${ARRAY:-0-3}"
-  --output=slurm-%x-%A_%a.out
-  --error=slurm-%x-%A_%a.err
+  --output="${LOGS_DIR}/slurm-%x-%A_%a.out"
+  --error="${LOGS_DIR}/slurm-%x-%A_%a.err"
   --export=ALL
   --chdir="${REPO}"
 )
 
-sbatch "${SLURM_ARGS[@]}" --wrap="$(quote_command bash -c "${WORKER_SCRIPT}" -- "$@")"
+ARRAY_JOB_ID="$(sbatch --parsable "${SLURM_ARGS[@]}" \
+  --wrap="$(quote_command bash -c "${WORKER_SCRIPT}" -- "$@")")"
+ARRAY_JOB_ID="${ARRAY_JOB_ID%%;*}"
+echo "[info] submitted array ${ARRAY_JOB_ID}; waiting for all tasks"
+
+# sbatch -W on an array can return before every task ends, so wait on a
+# dependency. Slurm cancels this job if any task fails, but sbatch -W still
+# exits 0 for it, so task states are checked afterwards.
+WAIT_ARGS=(
+  -W
+  --job-name=wait_${ARRAY_JOB_ID}
+  --account="${ACCOUNT:-icb}"
+  --partition="${PARTITION:-cpu_p}"
+  --qos="${QOS:-cpu_normal}"
+  --cpus-per-task=1
+  --mem=100M
+  --time=00:05:00
+  --output=/dev/null
+  --dependency=afterok:"${ARRAY_JOB_ID}"
+  --kill-on-invalid-dep=yes
+)
+sbatch "${WAIT_ARGS[@]}" --wrap=true > /dev/null || true
+failed_tasks="$(sacct -j "${ARRAY_JOB_ID}" -X -n -P -o JobID,State | awk -F'|' '$2 != "COMPLETED"')"
+if [[ -n "${failed_tasks}" ]]; then
+  echo "[error] array ${ARRAY_JOB_ID} has tasks that did not complete:" >&2
+  echo "${failed_tasks}" >&2
+  echo "[error] see ${LOGS_DIR}/slurm-*-${ARRAY_JOB_ID}_*.err" >&2
+  exit 1
+fi
+echo "[info] all tasks in array ${ARRAY_JOB_ID} completed"

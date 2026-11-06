@@ -65,7 +65,7 @@ if [ "${OVERWRITE}" = "1" ]; then
 fi
 
 echo "> Precomputing ashr sidecars into ${OUTPUT_ROOT} across ${N_SHARDS} shards"
-sbatch -W -J ashr_precompute \
+ARRAY_JOB_ID="$(sbatch --parsable -J ashr_precompute \
     -t "${TIME}" \
     -n 1 \
     --array="${ARRAY}" \
@@ -78,6 +78,22 @@ sbatch -W -J ashr_precompute \
     --chdir="${REPO_ROOT}" \
     -e "${LOGS_DIR}/ashr_precompute.%A_%a.err" \
     -o "${LOGS_DIR}/ashr_precompute.%A_%a.out" \
-    --wrap="$(quote_command "${CMD[@]}")"
+    --wrap="$(quote_command "${CMD[@]}")")"
+ARRAY_JOB_ID="${ARRAY_JOB_ID%%;*}"
+echo "> Submitted array ${ARRAY_JOB_ID}; waiting for all shards"
+
+# sbatch -W on an array can return before every task ends, so wait on a
+# dependency. Slurm cancels this job if any task fails, but sbatch -W still
+# exits 0 for it, so task states are checked afterwards.
+sbatch -W -J "wait_${ARRAY_JOB_ID}" --account="${ACCOUNT}" --partition="${PARTITION}" \
+    --qos="${QOS}" --cpus-per-task=1 --mem=100M --time=00:05:00 --output=/dev/null \
+    --dependency=afterok:"${ARRAY_JOB_ID}" --kill-on-invalid-dep=yes --wrap=true > /dev/null || true
+failed_tasks="$(sacct -j "${ARRAY_JOB_ID}" -X -n -P -o JobID,State | awk -F'|' '$2 != "COMPLETED"')"
+if [ -n "${failed_tasks}" ]; then
+    echo "> ERROR: shards in array ${ARRAY_JOB_ID} did not complete:" >&2
+    echo "${failed_tasks}" >&2
+    echo "> Check ${LOGS_DIR}/ashr_precompute.${ARRAY_JOB_ID}_*.err" >&2
+    exit 1
+fi
 
 echo "> Done. Sidecars in ${OUTPUT_ROOT}/<dataset>/<cell_type>.h5"

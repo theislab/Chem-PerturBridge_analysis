@@ -28,20 +28,32 @@ quote_command() {
     done
 }
 
+DATASETS="${DATASETS:-l1000_phase1,l1000_phase2,tahoe,sciplex,cigs_mce,cigs_tcm}"
+declare -A DATASET_SUBPATHS=(
+    [l1000_phase1]=filter_min_cells_0 [l1000_phase2]=filter_min_cells_0
+    [tahoe]=filter_min_cells_50 [sciplex]=filter_min_cells_10
+    [cigs_mce]=filter_min_cells_0 [cigs_tcm]=filter_min_cells_0
+)
+DATASET_ARGS=()
+IFS=, read -ra selected_datasets <<< "${DATASETS}"
+for name in "${selected_datasets[@]}"; do
+    if [ -z "${DATASET_SUBPATHS[${name}]:-}" ]; then
+        echo "> ERROR: unknown dataset ${name}; choose from ${!DATASET_SUBPATHS[*]}" >&2
+        exit 1
+    fi
+    DATASET_ARGS+=(--dataset-dir
+        "${name}=${DATA}/${name}/deg_data/group_rep/full/qc_false/${DATASET_SUBPATHS[${name}]}/results")
+done
+
 CMD=("${UV_BIN}" run python scripts/precompute_population_zscore.py
-    --dataset-dir "l1000_phase1=${DATA}/l1000_phase1/deg_data/group_rep/full/qc_false/filter_min_cells_0/results"
-    --dataset-dir "l1000_phase2=${DATA}/l1000_phase2/deg_data/group_rep/full/qc_false/filter_min_cells_0/results"
-    --dataset-dir "tahoe=${DATA}/tahoe/deg_data/group_rep/full/qc_false/filter_min_cells_50/results"
-    --dataset-dir "sciplex=${DATA}/sciplex/deg_data/group_rep/full/qc_false/filter_min_cells_10/results"
-    --dataset-dir "cigs_mce=${DATA}/cigs_mce/deg_data/group_rep/full/qc_false/filter_min_cells_0/results"
-    --dataset-dir "cigs_tcm=${DATA}/cigs_tcm/deg_data/group_rep/full/qc_false/filter_min_cells_0/results"
+    "${DATASET_ARGS[@]}"
     --scope "${SCOPE}"
     --row-chunk-size 1024
     --workers "${WORKERS}"
     --cache-root "${CACHE}"
     --qc-output "${CACHE}/precompute_qc.tsv")
 
-echo "> Precomputing population z-score statistics: workers=${WORKERS}, scope=${SCOPE}"
+echo "> Precomputing population z-score statistics: datasets=${DATASETS}, workers=${WORKERS}, scope=${SCOPE}"
 sbatch -W -J population_zscore_precompute \
     --account="${ACCOUNT}" \
     --partition="${PARTITION}" \

@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from scipy.sparse import issparse
 
+from .ashr import ASHR_LAYERS
 from .config import RetrievalSettings
 from .data import (
     CellTypeData,
@@ -43,6 +44,17 @@ DERIVED_Z_REP = "z=sign(logFC)*Phi^-1(1-p/2)"
 DERIVED_DIRECTION_REP = "sign(logFC)"
 DERIVED_POPULATION_ZSCORE_REP = "per_gene_population_zscore(logFC)"
 DERIVED_POPULATION_ZSCORE_DATASET_REP = "per_gene_population_zscore_dataset"
+
+def check_requested_ashr(requested: Iterable[str], available: Iterable[str], pair: str) -> None:
+    """Raise if a requested ASHR layer is unavailable; missing sidecars attach nothing."""
+    missing = (set(requested) & set(ASHR_LAYERS)) - set(available)
+    if missing:
+        raise FileNotFoundError(
+            f"Requested ASHR representation(s) {sorted(missing)} but sidecars are missing "
+            f"for {pair}. Set ASHR_SIDECAR_ROOT and run "
+            "bash scripts/slurm/run_precompute_ashr.sh first."
+        )
+
 
 ALL_METRICS = ("cosine", "pearson", "spearman", "mrrmse")
 SIMILARITY_METRICS = {"cosine", "pearson", "spearman"}
@@ -358,7 +370,7 @@ def _build_pair_contexts(
             )
         )
         if settings.include_representations:
-            requested_z = settings.include_representations & {
+            requested_z = (settings.include_representations - settings.skip_representations) & {
                 DERIVED_POPULATION_ZSCORE_REP,
                 DERIVED_POPULATION_ZSCORE_DATASET_REP,
             }
@@ -371,6 +383,12 @@ def _build_pair_contexts(
                     f"{db_data.dataset_name}:{db_cell_type}. "
                     "Run bash scripts/slurm/run_precompute_population_zscore.sh first."
                 )
+            check_requested_ashr(
+                settings.include_representations - settings.skip_representations,
+                available_reps,
+                f"{query_data.dataset_name}:{query_data.cell_type} -> "
+                f"{db_data.dataset_name}:{db_cell_type}",
+            )
             pair_reps = available_reps & settings.include_representations
         else:
             pair_reps = available_reps
