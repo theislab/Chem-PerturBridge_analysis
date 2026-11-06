@@ -135,6 +135,8 @@ bash scripts/slurm/run_overlap_group_rep_retrieval_metrics.sh
 ### Representation sweep
 
 Compare 11 representations across six datasets using cosine, Pearson and MRRMSE.
+The supported end-to-end workflow uses all six datasets and all 11 configured
+representations across eligible cross-dataset comparisons. Precompute data for ASHR and both population z-scores before running it.
 
 **Preparation**
 
