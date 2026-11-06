@@ -1,0 +1,24 @@
+\begin{table*}[t]
+\refstepcounter{table}
+\label{tab:cross_dataset_retrieval_representation_ranking_all}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{rllrr}
+\toprule
+Rank & Representation & Best metric & Mean retrieval score & Beats logFC \\
+\midrule
+1 & moderated $t$ & cosine & 0.6527 & 14 / 20 \\
+2 & $-\log_{10}(p)\cdot\mathrm{sign}(\mathrm{logFC})$ & Pearson & 0.6513 & 15 / 20 \\
+3 & $\mathrm{logFC}$ & cosine & 0.6414 & \multicolumn{1}{c}{n/a} \\
+4 & per-gene population $z$-score$(\mathrm{logFC})$, per dataset & cosine & 0.6407 & 11 / 20 \\
+5 & ashr posterior mean$(\mathrm{logFC})$, per cell line & cosine & 0.6397 & 10 / 20 \\
+6 & per-gene population $z$-score$(\mathrm{logFC})$, per cell line & Pearson & 0.6269 & 9 / 20 \\
+7 & $-\log_{10}(p_{\mathrm{adj}})\cdot\mathrm{sign}(\mathrm{logFC})$ & cosine & 0.6263 & 7 / 20 \\
+8 & $\mathrm{sign}(\mathrm{logFC})$ & MRRMSE & 0.6208 & 6 / 20 \\
+9 & $B$ statistic & Pearson & 0.6090 & 5 / 20 \\
+10 & $z=\mathrm{sign}(\mathrm{logFC})\cdot\Phi^{-1}(1-p/2)$ & cosine & 0.5993 & 1 / 20 \\
+11 & $p$ value & Pearson & 0.5534 & 0 / 20 \\
+\bottomrule
+\end{tabular}
+\end{table*}

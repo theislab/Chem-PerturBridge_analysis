@@ -1,0 +1,42 @@
+\begin{table*}[t]
+\refstepcounter{table}
+\label{tab:replicate_direction_agreement_bootstrap_ci}
+\centering
+\tiny
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{0.95}
+% Requires booktabs, graphicx, xcolor, array.
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{2.75cm}@{\hspace{1.5pt}}c@{\hspace{1.5pt}}c@{\hspace{14pt}}*{6}{>{\raggedright\arraybackslash}p{2.1cm}}@{}}
+\toprule
+Dataset & $n_{\mathrm{cmpd}}$ & $n_{\mathrm{cond}}$ & Observed direction & Centroid baseline direction & Peer mean direction & $\Delta$ centroid & $\Delta$ peer & Percentile \\
+ &  &  & \textcolor{gray}{95\% CI} & \textcolor{gray}{95\% CI} & \textcolor{gray}{95\% CI} & \textcolor{gray}{95\% CI} & \textcolor{gray}{95\% CI} & \textcolor{gray}{95\% CI} \\
+\midrule
+\addlinespace[2pt]
+CIGS-MCE & 4{,}065 & 21{,}426 & \begin{tabular}[t]{@{}l@{}}0.964\\\textcolor{gray}{[0.959, 0.968]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.790\\\textcolor{gray}{[0.786, 0.794]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.561\\\textcolor{gray}{[0.559, 0.562]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.156\\\textcolor{gray}{[0.151, 0.161]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.403\\\textcolor{gray}{[0.398, 0.407]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.917\\\textcolor{gray}{[0.912, 0.923]}\end{tabular} \\
+\addlinespace[1pt]
+CIGS-TCM & 898 & 7{,}020 & \begin{tabular}[t]{@{}l@{}}0.995\\\textcolor{gray}{[0.991, 0.997]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.690\\\textcolor{gray}{[0.681, 0.700]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.564\\\textcolor{gray}{[0.562, 0.567]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.208\\\textcolor{gray}{[0.198, 0.219]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.430\\\textcolor{gray}{[0.426, 0.434]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.910\\\textcolor{gray}{[0.901, 0.918]}\end{tabular} \\
+\addlinespace[1pt]
+DILImap & 296 & 1{,}184 & \begin{tabular}[t]{@{}l@{}}0.997\\\textcolor{gray}{[0.994, 0.998]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.746\\\textcolor{gray}{[0.734, 0.757]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.540\\\textcolor{gray}{[0.536, 0.543]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.267\\\textcolor{gray}{[0.255, 0.279]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.457\\\textcolor{gray}{[0.453, 0.461]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.998\\\textcolor{gray}{[0.996, 0.999]}\end{tabular} \\
+\addlinespace[1pt]
+GDPx2 & 86 & 2{,}064 & \begin{tabular}[t]{@{}l@{}}0.996\\\textcolor{gray}{[0.992, 0.998]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.687\\\textcolor{gray}{[0.670, 0.701]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.541\\\textcolor{gray}{[0.536, 0.546]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.295\\\textcolor{gray}{[0.280, 0.312]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.455\\\textcolor{gray}{[0.449, 0.460]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.972\\\textcolor{gray}{[0.964, 0.978]}\end{tabular} \\
+\addlinespace[1pt]
+L1000 Phase I & 265 & 2{,}517 & \begin{tabular}[t]{@{}l@{}}0.868\\\textcolor{gray}{[0.851, 0.882]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.649\\\textcolor{gray}{[0.639, 0.658]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.516\\\textcolor{gray}{[0.509, 0.521]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.192\\\textcolor{gray}{[0.174, 0.208]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.352\\\textcolor{gray}{[0.335, 0.367]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.887\\\textcolor{gray}{[0.871, 0.902]}\end{tabular} \\
+\addlinespace[1pt]
+L1000 Phase II & 218 & 2{,}729 & \begin{tabular}[t]{@{}l@{}}0.932\\\textcolor{gray}{[0.919, 0.943]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.630\\\textcolor{gray}{[0.621, 0.641]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.483\\\textcolor{gray}{[0.478, 0.490]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.283\\\textcolor{gray}{[0.270, 0.296]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.449\\\textcolor{gray}{[0.436, 0.460]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.948\\\textcolor{gray}{[0.935, 0.958]}\end{tabular} \\
+\addlinespace[1pt]
+Novartis/DRUG-seq U2OS & 3{,}342 & 15{,}276 & \begin{tabular}[t]{@{}l@{}}0.984\\\textcolor{gray}{[0.981, 0.986]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.770\\\textcolor{gray}{[0.767, 0.773]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.565\\\textcolor{gray}{[0.564, 0.567]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.207\\\textcolor{gray}{[0.203, 0.212]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.419\\\textcolor{gray}{[0.416, 0.421]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.974\\\textcolor{gray}{[0.972, 0.977]}\end{tabular} \\
+\addlinespace[1pt]
+OP3 & 78 & 541 & \begin{tabular}[t]{@{}l@{}}0.998\\\textcolor{gray}{[0.994, 0.999]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.731\\\textcolor{gray}{[0.689, 0.768]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.582\\\textcolor{gray}{[0.567, 0.596]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.236\\\textcolor{gray}{[0.197, 0.292]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.417\\\textcolor{gray}{[0.403, 0.431]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.965\\\textcolor{gray}{[0.947, 0.977]}\end{tabular} \\
+\addlinespace[1pt]
+sci-Plex & 103 & 2{,}224 & \begin{tabular}[t]{@{}l@{}}0.996\\\textcolor{gray}{[0.982, 0.999]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.786\\\textcolor{gray}{[0.774, 0.797]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.567\\\textcolor{gray}{[0.561, 0.572]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.193\\\textcolor{gray}{[0.178, 0.212]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.429\\\textcolor{gray}{[0.418, 0.435]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.989\\\textcolor{gray}{[0.977, 0.994]}\end{tabular} \\
+\addlinespace[1pt]
+Tahoe-100M & 114 & 7{,}226 & \begin{tabular}[t]{@{}l@{}}0.859\\\textcolor{gray}{[0.793, 0.908]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.850\\\textcolor{gray}{[0.822, 0.874]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.709\\\textcolor{gray}{[0.688, 0.732]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.002\\\textcolor{gray}{[-0.049, 0.042]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.150\\\textcolor{gray}{[0.102, 0.193]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.846\\\textcolor{gray}{[0.771, 0.893]}\end{tabular} \\
+\addlinespace[1pt]
+VCPI-0001 & 383 & 13{,}283 & \begin{tabular}[t]{@{}l@{}}0.996\\\textcolor{gray}{[0.992, 0.998]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.600\\\textcolor{gray}{[0.593, 0.608]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.531\\\textcolor{gray}{[0.528, 0.535]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.307\\\textcolor{gray}{[0.287, 0.329]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.465\\\textcolor{gray}{[0.461, 0.469]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.952\\\textcolor{gray}{[0.940, 0.962]}\end{tabular} \\
+\addlinespace[1pt]
+VCPI-0002 & 248 & 8{,}825 & \begin{tabular}[t]{@{}l@{}}1.000\\\textcolor{gray}{[1.000, 1.000]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.577\\\textcolor{gray}{[0.566, 0.587]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.551\\\textcolor{gray}{[0.546, 0.556]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.214\\\textcolor{gray}{[0.191, 0.241]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.449\\\textcolor{gray}{[0.444, 0.454]}\end{tabular} & \begin{tabular}[t]{@{}l@{}}0.925\\\textcolor{gray}{[0.909, 0.940]}\end{tabular} \\
+\bottomrule
+\end{tabular}
+}
+\end{table*}

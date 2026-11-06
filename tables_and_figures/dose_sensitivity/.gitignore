@@ -1,0 +1,5 @@
+# Keep the selected paper outputs; other runs stay local.
+!/results/
+/results/*
+!/results/default/
+!/results/default/**

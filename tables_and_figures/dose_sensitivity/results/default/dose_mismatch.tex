@@ -1,0 +1,44 @@
+\begin{table*}[t]
+\refstepcounter{table}
+\label{tab:dose_mismatch}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrrrrrrrrr}
+\toprule
+& \multicolumn{4}{c}{Fold difference} &
+\multicolumn{5}{c}{\# Matched pairs by dose threshold} \\
+\cmidrule(lr){2-5} \cmidrule(lr){6-10}
+Dataset pair & min & median & q95 & max &
+exact & 2$\times$ & 3$\times$ & 10$\times$ & $\#_{10\times}$--$\#_{3\times}$ \\
+\midrule
+L1000 Phase I--L1000 Phase II &
+1.00 & 1.00 & 1.66 & 10.00 &
+29{,}250 & 49{,}733 & 49{,}768 & 50{,}695 & 927 \\
+CIGS-MCE--CIGS-TCM &
+1.00 & 1.00 & 1.00 & 2.00 &
+15{,}863 & 15{,}973 & 15{,}973 & 15{,}973 & 0 \\
+L1000 Phase I--sci-Plex &
+1.00 & 1.00 & 1.30 & 10.00 &
+1{,}918 & 2{,}689 & 2{,}689 & 2{,}695 & 6 \\
+L1000 Phase II--sci-Plex &
+1.00 & 1.11 & 1.23 & 1.23 &
+1{,}147 & 3{,}192 & 3{,}192 & 3{,}192 & 0 \\
+L1000 Phase I--CIGS-MCE &
+1.00 & 1.00 & 1.00 & 5.00 &
+1{,}395 & 1{,}395 & 1{,}395 & 1{,}401 & 6 \\
+L1000 Phase II--CIGS-MCE &
+1.00 & 1.00 & 1.00 & 3.00 &
+499 & 499 & 499 & 508 & 9 \\
+L1000 Phase I--Tahoe-100M &
+1.21 & 2.00 & 2.00 & 8.88 &
+0 & 600 & 600 & 610 & 10 \\
+L1000 Phase II--Tahoe-100M &
+1.21 & 1.35 & 1.50 & 2.40 &
+0 & 1{,}471 & 1{,}473 & 1{,}473 & 0 \\
+Tahoe-100M--sci-Plex &
+2.00 & 2.00 & 2.00 & 2.00 &
+0 & 170 & 170 & 170 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table*}

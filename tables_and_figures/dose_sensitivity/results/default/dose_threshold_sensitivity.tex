@@ -1,0 +1,43 @@
+\begin{table*}[t]
+\refstepcounter{table}
+\label{tab:dose_threshold_sensitivity}
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{1.15}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{>{\raggedright\arraybackslash}p{3.4cm}@{\hspace{0.8pt}}cccccc}
+\toprule
+& \multicolumn{3}{c}{DEG Spearman} & \multicolumn{3}{c}{Direction} \\
+\cmidrule(lr){2-4} \cmidrule(lr){5-7}
+Dataset pair & exact & 2$\times$ & 10$\times$ & exact & 2$\times$ & 10$\times$ \\
+\midrule
+L1000 Phase I--L1000 Phase II
+  & 0.478 / -0.053 & 0.373 / -0.095 & 0.372 / -0.094
+  & 0.929 / +0.152 & 0.920 / +0.158 & 0.917 / +0.156 \\
+CIGS-MCE--CIGS-TCM
+  & 0.351 / -0.142 & 0.365 / -0.129 & 0.365 / -0.129
+  & 0.920 / +0.160 & 0.923 / +0.164 & 0.923 / +0.164 \\
+L1000 Phase I--sci-Plex
+  & 0.428 / -0.174 & 0.395 / -0.188 & 0.395 / -0.188
+  & 0.899 / +0.130 & 0.888 / +0.129 & 0.890 / +0.131 \\
+L1000 Phase II--sci-Plex
+  & 0.538 / -0.115 & 0.491 / -0.107 & 0.491 / -0.107
+  & 0.949 / +0.184 & 0.949 / +0.186 & 0.949 / +0.186 \\
+L1000 Phase I--CIGS-MCE
+  & 0.378 / -0.190 & 0.378 / -0.190 & 0.373 / -0.193
+  & 0.878 / +0.055 & 0.878 / +0.055 & 0.873 / +0.053 \\
+L1000 Phase II--CIGS-MCE
+  & 0.482 / -0.155 & 0.482 / -0.155 & 0.479 / -0.163
+  & 0.928 / +0.102 & 0.928 / +0.102 & 0.919 / +0.094 \\
+L1000 Phase I--Tahoe-100M
+  & n/a & 0.174 / -0.250 & 0.174 / -0.250
+  & n/a & 0.736 / -0.018 & 0.736 / -0.018 \\
+L1000 Phase II--Tahoe-100M
+  & n/a & 0.084 / -0.305 & 0.084 / -0.305
+  & n/a & 0.675 / -0.093 & 0.675 / -0.093 \\
+Tahoe-100M--sci-Plex
+  & n/a & 0.124 / -0.465 & 0.124 / -0.465
+  & n/a & 0.896 / +0.083 & 0.896 / +0.083 \\
+\bottomrule
+\end{tabular}
+\end{table*}

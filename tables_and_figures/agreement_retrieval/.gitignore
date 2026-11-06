@@ -1,0 +1,9 @@
+# Retain the small, saved inputs required to rebuild these tables.
+!data/
+!data/**
+
+# Retain the default manuscript outputs; other run directories stay local.
+!/results/
+/results/*
+!/results/default/
+!/results/default/**
