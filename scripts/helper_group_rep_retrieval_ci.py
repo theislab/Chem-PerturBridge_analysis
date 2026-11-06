@@ -1,4 +1,4 @@
-"""Table 9 CIs, retaining the strict, reseeded-peer and reviewer hash lineages.
+"""Tables 12/13 CIs, retaining the strict, reseeded-peer and reviewer hash lineages.
 
 Historical metric names, group order and summary levels below are bootstrap inputs.
 Computation/family labels are attached only after bootstrapping. Input row order is

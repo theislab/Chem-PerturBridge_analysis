@@ -969,7 +969,7 @@ def add_common_arguments(
         "--z-score-stats-root",
         metavar="PATH",
         type=Path,
-        default=REPO_ROOT / "results" / "w4_population_zscore_stats",
+        default=REPO_ROOT / "results" / "population_zscore_stats",
         help="Existing population z-score statistics cache root.",
     )
     if include_z_score_scales:

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Parallel, resumable Table 6 matched-signature scoring.
+"""Parallel, resumable Table 8 matched-signature scoring.
 
 Select components with --compute: raw, z-score-dataset,
-z-score-dataset-cell-type, moderated-t. Moderated-t retains the raw signature
-metrics and adds t peer baselines using the same selected peers. A CI summary
-is written beside the scored metrics after scoring completes.
+z-score-dataset-cell-type, moderated-t. Raw and moderated-t compute separate
+metric families using the same matching and peer selection. A CI summary is
+written beside signature_scored_metrics.tsv after scoring completes.
 """
 
 from __future__ import annotations
@@ -62,7 +62,6 @@ from scripts.population_zscore import (
 ANALYSIS = "signature"
 FINAL_METRICS_NAME = "signature_scored_metrics.tsv"
 MODERATED_T_ANALYSIS = "signature_moderated_t"
-MODERATED_T_METRICS_NAME = "signature_moderated_t_scored_metrics.tsv"
 EFFECT_LAYER = "t"
 PEER_PREFIX = "pbt"
 OBSERVED_KEY = "pbt_observed_spearman_t"
@@ -75,14 +74,14 @@ CONTEXT_COLUMNS = (
     "right_dose_key",
 )
 COMPUTATIONS = {
-    "raw": "Raw matched-signature metrics and individual-peer baselines.",
+    "raw": "LogFC matched-signature metrics and individual-peer baselines.",
     "z-score-dataset": (
         "Dataset-wide per-gene population-z-score signature metrics."
     ),
     "z-score-dataset-cell-type": (
         "Dataset-by-cell-type per-gene population-z-score signature metrics."
     ),
-    "moderated-t": "Moderated-t signature peer baselines, retaining raw signature metrics.",
+    "moderated-t": "Moderated-t signature metrics and individual-peer baselines.",
 }
 COMPUTATION_TO_SCALE = {
     "z-score-dataset": PER_GENE_DATASET_VARIANT,
@@ -153,26 +152,22 @@ def _raw_signature_record(
         "logFC",
         **right_lookup,
     )
-    left_t_full = left_source.get_vector(left_obs_id, "t", **left_lookup)
-    right_t_full = right_source.get_vector(right_obs_id, "t", **right_lookup)
     left_logfc = left_logfc_full[left_positions]
     right_logfc = right_logfc_full[right_positions]
-    left_t = left_t_full[left_positions]
-    right_t = right_t_full[right_positions]
-    observed = cross_source_core.score_signature_pair(
-        left_logfc=left_logfc,
-        right_logfc=right_logfc,
-        left_t=left_t,
-        right_t=right_t,
-    )
-    global_observed = cross_source_core.empty_score_dict()
+    observed = {
+        "spearman_logfc": cross_source_core.signed_spearman(
+            left_logfc,
+            right_logfc,
+        ),
+    }
+    global_observed = {"spearman_logfc": float("nan")}
     if global_genes.size >= 2:
-        global_observed = cross_source_core.score_signature_pair(
-            left_logfc=left_logfc_full[left_global_positions],
-            right_logfc=right_logfc_full[right_global_positions],
-            left_t=left_t_full[left_global_positions],
-            right_t=right_t_full[right_global_positions],
-        )
+        global_observed = {
+            "spearman_logfc": cross_source_core.signed_spearman(
+                left_logfc_full[left_global_positions],
+                right_logfc_full[right_global_positions],
+            ),
+        }
 
     left_centroid_logfc = _centroid(
         left_source,
@@ -186,20 +181,6 @@ def _raw_signature_record(
         right_obs_id,
         right_lookup,
         "logFC",
-        right_positions,
-    )
-    left_centroid_t = _centroid(
-        left_source,
-        left_obs_id,
-        left_lookup,
-        "t",
-        left_positions,
-    )
-    right_centroid_t = _centroid(
-        right_source,
-        right_obs_id,
-        right_lookup,
-        "t",
         right_positions,
     )
     left_centroid_logfc_global = _centroid(
@@ -216,60 +197,44 @@ def _raw_signature_record(
         "logFC",
         right_global_positions,
     )
-    left_centroid_t_global = _centroid(
-        left_source,
-        left_obs_id,
-        left_lookup,
-        "t",
-        left_global_positions,
-    )
-    right_centroid_t_global = _centroid(
-        right_source,
-        right_obs_id,
-        right_lookup,
-        "t",
-        right_global_positions,
-    )
-    left_baseline = cross_source_core.empty_score_dict()
-    if left_centroid_logfc is not None and left_centroid_t is not None:
-        left_baseline = cross_source_core.score_signature_pair(
-            left_logfc=left_logfc,
-            right_logfc=left_centroid_logfc,
-            left_t=left_t,
-            right_t=left_centroid_t,
-        )
-    right_baseline = cross_source_core.empty_score_dict()
-    if right_centroid_logfc is not None and right_centroid_t is not None:
-        right_baseline = cross_source_core.score_signature_pair(
-            left_logfc=right_logfc,
-            right_logfc=right_centroid_logfc,
-            left_t=right_t,
-            right_t=right_centroid_t,
-        )
-    left_baseline_global = cross_source_core.empty_score_dict()
+    left_baseline = {"spearman_logfc": float("nan")}
+    if left_centroid_logfc is not None:
+        left_baseline = {
+            "spearman_logfc": cross_source_core.signed_spearman(
+                left_logfc,
+                left_centroid_logfc,
+            ),
+        }
+    right_baseline = {"spearman_logfc": float("nan")}
+    if right_centroid_logfc is not None:
+        right_baseline = {
+            "spearman_logfc": cross_source_core.signed_spearman(
+                right_logfc,
+                right_centroid_logfc,
+            ),
+        }
+    left_baseline_global = {"spearman_logfc": float("nan")}
     if (
         global_genes.size >= 2
         and left_centroid_logfc_global is not None
-        and left_centroid_t_global is not None
     ):
-        left_baseline_global = cross_source_core.score_signature_pair(
-            left_logfc=left_logfc_full[left_global_positions],
-            right_logfc=left_centroid_logfc_global,
-            left_t=left_t_full[left_global_positions],
-            right_t=left_centroid_t_global,
-        )
-    right_baseline_global = cross_source_core.empty_score_dict()
+        left_baseline_global = {
+            "spearman_logfc": cross_source_core.signed_spearman(
+                left_logfc_full[left_global_positions],
+                left_centroid_logfc_global,
+            ),
+        }
+    right_baseline_global = {"spearman_logfc": float("nan")}
     if (
         global_genes.size >= 2
         and right_centroid_logfc_global is not None
-        and right_centroid_t_global is not None
     ):
-        right_baseline_global = cross_source_core.score_signature_pair(
-            left_logfc=right_logfc_full[right_global_positions],
-            right_logfc=right_centroid_logfc_global,
-            left_t=right_t_full[right_global_positions],
-            right_t=right_centroid_t_global,
-        )
+        right_baseline_global = {
+            "spearman_logfc": cross_source_core.signed_spearman(
+                right_logfc_full[right_global_positions],
+                right_centroid_logfc_global,
+            ),
+        }
 
     left_selected = select_source_peers(
         left_source,
@@ -309,43 +274,12 @@ def _raw_signature_record(
     right_peers = right_selected.stratum.values[
         right_selected.row_indices
     ][:, right_positions]
-    overlap_name = f"signed_overlap_t_top{cross_source_core.TOP_K}"
-    left_mean_abs_t = cross_source_core.mean_available(np.abs(left_t).tolist())
-    right_mean_abs_t = cross_source_core.mean_available(np.abs(right_t).tolist())
-    left_mean_abs_t_global = (
-        cross_source_core.mean_available(
-            np.abs(left_t_full[left_global_positions]).tolist()
-        )
-        if global_genes.size >= 2
-        else float("nan")
-    )
-    right_mean_abs_t_global = (
-        cross_source_core.mean_available(
-            np.abs(right_t_full[right_global_positions]).tolist()
-        )
-        if global_genes.size >= 2
-        else float("nan")
-    )
     record: dict[str, Any] = {
         **row.to_dict(),
         "n_common_genes": int(shared_genes.size),
         "n_global_common_genes": int(global_genes.size),
-        "left_mean_abs_t": left_mean_abs_t,
-        "right_mean_abs_t": right_mean_abs_t,
-        "pair_mean_abs_t": cross_source_core.mean_available(
-            [left_mean_abs_t, right_mean_abs_t]
-        ),
-        "left_mean_abs_t_global": left_mean_abs_t_global,
-        "right_mean_abs_t_global": right_mean_abs_t_global,
-        "pair_mean_abs_t_global": cross_source_core.mean_available(
-            [left_mean_abs_t_global, right_mean_abs_t_global]
-        ),
         "observed_spearman_logfc": observed["spearman_logfc"],
         "observed_spearman_logfc_global": global_observed["spearman_logfc"],
-        "observed_spearman_t": observed["spearman_t"],
-        "observed_spearman_t_global": global_observed["spearman_t"],
-        f"observed_{overlap_name}": observed[overlap_name],
-        f"observed_{overlap_name}_global": global_observed[overlap_name],
         "left_baseline_peer_count": expected_left,
         "right_baseline_peer_count": expected_right,
         "left_baseline_spearman_logfc": left_baseline["spearman_logfc"],
@@ -356,20 +290,6 @@ def _raw_signature_record(
         "right_baseline_spearman_logfc_global": (
             right_baseline_global["spearman_logfc"]
         ),
-        "left_baseline_spearman_t": left_baseline["spearman_t"],
-        "right_baseline_spearman_t": right_baseline["spearman_t"],
-        "left_baseline_spearman_t_global": left_baseline_global["spearman_t"],
-        "right_baseline_spearman_t_global": (
-            right_baseline_global["spearman_t"]
-        ),
-        f"left_baseline_{overlap_name}": left_baseline[overlap_name],
-        f"right_baseline_{overlap_name}": right_baseline[overlap_name],
-        f"left_baseline_{overlap_name}_global": (
-            left_baseline_global[overlap_name]
-        ),
-        f"right_baseline_{overlap_name}_global": (
-            right_baseline_global[overlap_name]
-        ),
         "baseline_pair_mean_spearman_logfc": (
             cross_source_core.mean_available(
                 [
@@ -378,41 +298,11 @@ def _raw_signature_record(
                 ]
             )
         ),
-        "baseline_pair_mean_spearman_t": cross_source_core.mean_available(
-            [
-                left_baseline["spearman_t"],
-                right_baseline["spearman_t"],
-            ]
-        ),
         "baseline_pair_mean_spearman_logfc_global": (
             cross_source_core.mean_available(
                 [
                     left_baseline_global["spearman_logfc"],
                     right_baseline_global["spearman_logfc"],
-                ]
-            )
-        ),
-        "baseline_pair_mean_spearman_t_global": (
-            cross_source_core.mean_available(
-                [
-                    left_baseline_global["spearman_t"],
-                    right_baseline_global["spearman_t"],
-                ]
-            )
-        ),
-        f"baseline_pair_mean_{overlap_name}": (
-            cross_source_core.mean_available(
-                [
-                    left_baseline[overlap_name],
-                    right_baseline[overlap_name],
-                ]
-            )
-        ),
-        f"baseline_pair_mean_{overlap_name}_global": (
-            cross_source_core.mean_available(
-                [
-                    left_baseline_global[overlap_name],
-                    right_baseline_global[overlap_name],
                 ]
             )
         ),
@@ -450,14 +340,14 @@ def _raw_signature_record(
     return record, state
 
 
-def _signature_z_score_base_record(
+def _signature_base_record(
     row: pd.Series,
     *,
     catalog: cross_source_core.LineSourceCatalog,
     max_peers: Optional[int],
     sampling_seed: int,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Prepare only the shared inputs required by selected z-score kernels."""
+    """Prepare shared inputs for selected z-score or moderated-t calculations."""
     dataset_a = str(row["dataset_a"])
     dataset_b = str(row["dataset_b"])
     cell_type = str(row["cell_type"])
@@ -625,7 +515,7 @@ def _z_score_signature_columns(
     prefix = f"{scale_variant}__w4"
     values: dict[str, Any] = {
         f"{scale_variant}__n_common_genes": int(len(left_positions)),
-        f"{scale_variant}__n_w4_common_genes": int(
+        f"{scale_variant}__n_z_score_common_genes": int(
             np.sum(np.isfinite(left_sample) & np.isfinite(right_sample))
         ),
         f"{scale_variant}__left_population_row_count": (
@@ -741,66 +631,84 @@ def _moderated_t_signature_columns(
     row: pd.Series,
     *,
     state: Mapping[str, Any],
-    observed_reference: Optional[float],
+    catalog: cross_source_core.LineSourceCatalog,
 ) -> dict[str, Any]:
-    """Add t peer baselines using the raw run's gene positions and sampled peers."""
+    """Compute t agreement, centroids and peer baselines without raw metrics."""
     left_source = state["left_source"]
     right_source = state["right_source"]
-    left_positions = state["left_positions"]
-    right_positions = state["right_positions"]
     left_lookup = _lookup(row, "left")
     right_lookup = _lookup(row, "right")
     left_obs_id = str(row["left_obs_id"])
     right_obs_id = str(row["right_obs_id"])
+    left_t_full = left_source.get_vector(left_obs_id, EFFECT_LAYER, **left_lookup)
+    right_t_full = right_source.get_vector(right_obs_id, EFFECT_LAYER, **right_lookup)
+    global_genes, left_global_positions = catalog.global_gene_positions(left_source)
+    _, right_global_positions = catalog.global_gene_positions(right_source)
+    overlap_name = f"signed_overlap_t_top{cross_source_core.TOP_K}"
+    record = {"n_global_common_genes": int(global_genes.size)}
 
-    # get_vector caches on (layer, row_pos), and the raw record already pulled these, so
-    # this is a cache hit rather than re-reading the layer.
-    left_effect = left_source.get_vector(left_obs_id, EFFECT_LAYER, **left_lookup)[
-        left_positions
-    ]
-    right_effect = right_source.get_vector(right_obs_id, EFFECT_LAYER, **right_lookup)[
-        right_positions
-    ]
-    # Same helper the driver uses, so the centroid convention (different-compound,
-    # all-finite) is the published one rather than a re-derivation.
-    left_centroid = _centroid(
-        left_source, left_obs_id, left_lookup, EFFECT_LAYER, left_positions
-    )
-    right_centroid = _centroid(
-        right_source, right_obs_id, right_lookup, EFFECT_LAYER, right_positions
-    )
-    left_peers = effect_peer_matrix(
-        left_source, state["left_selected"], left_lookup, left_positions
-    )
-    right_peers = effect_peer_matrix(
-        right_source, state["right_selected"], right_lookup, right_positions
-    )
-
-    # Recomputed from the same arrays handed to the peer scoring below, so the observed
-    # value and its comparators cannot drift apart. Cross-checked against the driver's
-    # own observed_spearman_t, which comes from score_signature_pair.
-    observed = cross_source_core.signed_spearman(left_effect, right_effect)
-    driver_observed = observed_reference
-    if driver_observed is not None and np.isfinite(driver_observed) and np.isfinite(observed):
-        if not np.isclose(observed, driver_observed, rtol=0, atol=1e-12):
-            raise AssertionError(
-                f"observed spearman_t {observed!r} disagrees with the driver's "
-                f"{driver_observed!r}; the t vectors here are not the driver's"
-            )
-
-    record = {OBSERVED_KEY: observed}
-    record.update(
-        score_signature_baselines(
-            observed=observed,
-            left_sample=left_effect,
-            right_sample=right_effect,
-            left_centroid=left_centroid,
-            right_centroid=right_centroid,
-            left_peer_matrix=left_peers,
-            right_peer_matrix=right_peers,
-            prefix=PEER_PREFIX,
+    # Preserve the existing pairwise/global gene sets and per-metric finite masks.
+    for suffix, left_positions, right_positions, available in (
+        ("", state["left_positions"], state["right_positions"], True),
+        ("_global", left_global_positions, right_global_positions, global_genes.size >= 2),
+    ):
+        left_t = left_t_full[left_positions]
+        right_t = right_t_full[right_positions]
+        left_centroid = _centroid(
+            left_source, left_obs_id, left_lookup, EFFECT_LAYER, left_positions,
         )
-    )
+        right_centroid = _centroid(
+            right_source, right_obs_id, right_lookup, EFFECT_LAYER, right_positions,
+        )
+        comparisons = (
+            ("observed", left_t, right_t),
+            ("left_baseline", left_t, left_centroid),
+            ("right_baseline", right_t, right_centroid),
+        )
+        for prefix, left_values, right_values in comparisons:
+            valid = available and right_values is not None
+            record[f"{prefix}_spearman_t{suffix}"] = (
+                cross_source_core.signed_spearman(left_values, right_values)
+                if valid else float("nan")
+            )
+            record[f"{prefix}_{overlap_name}{suffix}"] = (
+                cross_source_core.signed_overlap_at_k(
+                    left_values, right_values, k=cross_source_core.TOP_K,
+                ) if valid else float("nan")
+            )
+        for metric in ("spearman_t", overlap_name):
+            record[f"baseline_pair_mean_{metric}{suffix}"] = cross_source_core.mean_available([
+                record[f"left_baseline_{metric}{suffix}"],
+                record[f"right_baseline_{metric}{suffix}"],
+            ])
+        record[f"left_mean_abs_t{suffix}"] = (
+            cross_source_core.mean_available(np.abs(left_t).tolist())
+            if available else float("nan")
+        )
+        record[f"right_mean_abs_t{suffix}"] = (
+            cross_source_core.mean_available(np.abs(right_t).tolist())
+            if available else float("nan")
+        )
+        record[f"pair_mean_abs_t{suffix}"] = cross_source_core.mean_available([
+            record[f"left_mean_abs_t{suffix}"], record[f"right_mean_abs_t{suffix}"],
+        ])
+        if not suffix:
+            observed = record["observed_spearman_t"]
+            record[OBSERVED_KEY] = observed
+            record.update(score_signature_baselines(
+                observed=observed,
+                left_sample=left_t,
+                right_sample=right_t,
+                left_centroid=left_centroid,
+                right_centroid=right_centroid,
+                left_peer_matrix=effect_peer_matrix(
+                    left_source, state["left_selected"], left_lookup, left_positions,
+                ),
+                right_peer_matrix=effect_peer_matrix(
+                    right_source, state["right_selected"], right_lookup, right_positions,
+                ),
+                prefix=PEER_PREFIX,
+            ))
     return relabel_effect_layer(record)
 
 
@@ -820,7 +728,7 @@ def score_signature_row(
 ) -> dict[str, Any]:
     if prepared_strata is None:
         prepared_strata = {}
-    if include_raw_metrics or include_moderated_t:
+    if include_raw_metrics:
         record, state = _raw_signature_record(
             row,
             catalog=catalog,
@@ -828,7 +736,7 @@ def score_signature_row(
             sampling_seed=sampling_seed,
         )
     else:
-        record, state = _signature_z_score_base_record(
+        record, state = _signature_base_record(
             row,
             catalog=catalog,
             max_peers=max_peers,
@@ -839,7 +747,7 @@ def score_signature_row(
             _moderated_t_signature_columns(
                 row,
                 state=state,
-                observed_reference=record.get("observed_spearman_t"),
+                catalog=catalog,
             )
         )
     for scale_variant in z_score_scale_variants:
@@ -923,7 +831,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         epilog=(
             "Without --compute, run raw plus the z-score scopes selected by --z-score-scales. "
-            "Moderated-t is opt-in and retains raw signature metrics."
+            "Select raw,moderated-t explicitly to compute both metric families."
         ),
     )
     add_common_arguments(parser, analysis=ANALYSIS)
@@ -941,12 +849,6 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.compute,
             computations=COMPUTATIONS,
         )
-        args.required_layers_override = (
-            ("logFC", "t")
-            if "raw" in selected_computations or "moderated-t" in selected_computations
-            else ("logFC",)
-        )
-        args.require_adj_p_override = False
         z_score_scale_variants = tuple(
             COMPUTATION_TO_SCALE[name]
             for name in selected_computations
@@ -963,15 +865,17 @@ def main(argv: Optional[list[str]] = None) -> int:
             ),
         )
     include_moderated_t = "moderated-t" in selected_computations
+    args.required_layers_override = ("logFC", "t") if include_moderated_t else ("logFC",)
+    args.require_adj_p_override = False
     settings = {
         "top_k": cross_source_core.TOP_K,
         "max_baseline_peers": args.max_baseline_peers,
         "peer_sampling_seed": args.peer_sampling_seed,
         "computations": list(selected_computations),
-        "include_raw_metrics": "raw" in selected_computations or include_moderated_t,
+        "include_raw_metrics": "raw" in selected_computations,
         "include_moderated_t": include_moderated_t,
         "z_score_scale_variants": list(z_score_scale_variants),
-        "scorer_version": "parallel-signature-v5",
+        "scorer_version": "parallel-signature-v6",
     }
     metrics_path, _ = run_analysis(
         analysis=ANALYSIS,
@@ -979,9 +883,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         args=args,
         context_columns=CONTEXT_COLUMNS,
         rows_per_shard=args.rows_per_shard,
-        final_metrics_name=(
-            MODERATED_T_METRICS_NAME if include_moderated_t else FINAL_METRICS_NAME
-        ),
+        final_metrics_name=FINAL_METRICS_NAME,
         settings=settings,
         code_paths=[
             Path(__file__),

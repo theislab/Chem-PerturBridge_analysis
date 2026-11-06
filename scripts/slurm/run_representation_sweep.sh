@@ -15,7 +15,7 @@ LATEX_DIR="${LATEX_DIR:-${REPO_ROOT}/tables_and_figures/agreement_retrieval/resu
 DATA_ROOT="${DATA_ROOT:-/lustre/groups/ml01/workspace/olga.novitskaia/data_updated}"
 CIGS_SUBPATH="${CIGS_SUBPATH:-deg_data/group_rep/full/qc_false/filter_min_cells_0/results}"
 ASHR_SIDECAR_ROOT="${ASHR_SIDECAR_ROOT:-${REPO_ROOT}/results/ashr_sidecars}"
-Z_SCORE_STATS_ROOT="${Z_SCORE_STATS_ROOT:-${REPO_ROOT}/results/w4_population_zscore_stats}"
+Z_SCORE_STATS_ROOT="${Z_SCORE_STATS_ROOT:-${REPO_ROOT}/results/population_zscore_stats}"
 
 QUERY_DATASETS="${QUERY_DATASETS:-sciplex,tahoe,l1000_phase1,l1000_phase2,cigs_mce,cigs_tcm}"
 DB_DATASETS="${DB_DATASETS:-sciplex,tahoe,l1000_phase1,l1000_phase2,cigs_mce,cigs_tcm}"
@@ -36,7 +36,7 @@ MERGE_MEM="${MERGE_MEM:-200G}"
 if [[ "${REPRESENTATIONS}" == all || "${REPRESENTATIONS}" == *ashr* ]]; then
     if [ ! -d "${ASHR_SIDECAR_ROOT}" ]; then
         echo "> ERROR: ASHR sidecars missing: ${ASHR_SIDECAR_ROOT}"
-        echo "> Run scripts/slurm/run_precompute_ashr.sh first."
+        echo "> Run bash scripts/slurm/run_precompute_ashr.sh first."
         exit 1
     fi
 fi
@@ -44,7 +44,7 @@ if [[ "${REPRESENTATIONS}" == all || "${REPRESENTATIONS}" == *population_zscore*
     for cache_dir in dataset_wide sciplex tahoe l1000_phase1 l1000_phase2 cigs_mce cigs_tcm; do
         if [ ! -d "${Z_SCORE_STATS_ROOT}/${cache_dir}" ]; then
             echo "> ERROR: population z-score caches missing: ${Z_SCORE_STATS_ROOT}/${cache_dir}"
-            echo "> Run scripts/slurm/run_precompute_population_zscore.sbatch first."
+            echo "> Run bash scripts/slurm/run_precompute_population_zscore.sh first."
             exit 1
         fi
     done

@@ -2,8 +2,9 @@
 """Parallel, resumable DEG scoring with logFC, population z-scores, or moderated t.
 
 Select components with --compute: raw, z-score-dataset,
-z-score-dataset-cell-type, moderated-t. Moderated-t retains the raw logFC metrics,
-uses logFC-derived DEG masks, and reuses the same selected peers.
+z-score-dataset-cell-type, moderated-t. Each component computes only its
+own metrics. Moderated-t uses logFC-derived DEG masks and the same selected peers,
+without computing raw logFC agreement or baselines unless raw is also selected.
 """
 
 from __future__ import annotations
@@ -72,7 +73,6 @@ from scripts.population_zscore import (
 ANALYSIS = "deg"
 FINAL_METRICS_NAME = "deg_scored_metrics.tsv"
 MODERATED_T_ANALYSIS = "deg_moderated_t"
-MODERATED_T_METRICS_NAME = "deg_moderated_t_scored_metrics.tsv"
 EFFECT_LAYER = "t"
 PEER_PREFIX = "pbt"
 EFFECT_METRICS = ("deg_t_spearman",)
@@ -92,7 +92,7 @@ COMPUTATIONS = {
     "z-score-dataset-cell-type": (
         "Dataset-by-cell-type per-gene population-z-score DEG metrics."
     ),
-    "moderated-t": "Moderated-t DEG Spearman and peer baselines, retaining raw logFC metrics.",
+    "moderated-t": "Moderated-t DEG Spearman and peer baselines using logFC-derived DEG masks.",
 }
 COMPUTATION_TO_SCALE = {
     "z-score-dataset": PER_GENE_DATASET_VARIANT,
@@ -662,14 +662,14 @@ def _raw_deg_record(
     return record, state
 
 
-def _deg_z_score_base_record(
+def _deg_base_record(
     row: pd.Series,
     *,
     catalog: cross_source_core.LineSourceCatalog,
     max_peers: int,
     sampling_seed: int,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Prepare only the shared inputs required by selected z-score kernels."""
+    """Prepare shared inputs for z-score or moderated-t metrics without raw scoring."""
     dataset_a = str(row["dataset_a"])
     dataset_b = str(row["dataset_b"])
     cell_type = str(row["cell_type"])
@@ -814,7 +814,7 @@ def _z_score_deg_columns(
     )
     values: dict[str, Any] = {
         "n_common_genes": int(len(left_positions)),
-        "n_w4_common_genes": int(
+        "n_z_score_common_genes": int(
             np.sum(np.isfinite(left_sample) & np.isfinite(right_sample))
         ),
         "left_population_row_count": (
@@ -1025,7 +1025,7 @@ def score_moderated_t_baselines(
             #     subtraction, so the NaN policy is the driver's and not float semantics'.
             #   * the pair-level sd / fraction / corrected percentile exist only for peer
             #     variants, not centroids, and are means of the per-side values rather
-            #     than recomputed from a pooled distribution. The published Table 4
+            #     than recomputed from a pooled distribution. The published DEG table (current Table 6)
             #     "Corrected percentile" column is this pair-level value.
             means: list[float] = []
             sds: list[float] = []
@@ -1134,7 +1134,7 @@ def score_deg_row(
     z_score_scale_variants: tuple[str, ...] = POPULATION_SCALE_VARIANTS,
     include_moderated_t: bool = False,
 ) -> dict[str, Any]:
-    if include_raw_metrics or include_moderated_t:
+    if include_raw_metrics:
         record, state = _raw_deg_record(
             row,
             catalog=catalog,
@@ -1143,7 +1143,7 @@ def score_deg_row(
             sampling_seed=sampling_seed,
         )
     else:
-        record, state = _deg_z_score_base_record(
+        record, state = _deg_base_record(
             row,
             catalog=catalog,
             max_peers=max_peers,
@@ -1228,7 +1228,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Parallel, resumable matched-pair DEG metric scoring.",
         epilog=(
             "Without --compute, run raw plus the z-score scopes selected by --z-score-scales. "
-            "Moderated-t is opt-in and retains raw logFC metrics."
+            "Moderated-t is opt-in; raw logFC metrics require selecting raw."
         ),
     )
     add_common_arguments(parser, analysis=ANALYSIS)
@@ -1246,12 +1246,6 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.compute,
             computations=COMPUTATIONS,
         )
-        args.required_layers_override = (
-            ("logFC", EFFECT_LAYER)
-            if "moderated-t" in selected_computations
-            else ("logFC",)
-        )
-        args.require_adj_p_override = True
         z_score_scale_variants = tuple(
             COMPUTATION_TO_SCALE[name]
             for name in selected_computations
@@ -1268,6 +1262,10 @@ def main(argv: Optional[list[str]] = None) -> int:
             ),
         )
     include_moderated_t = "moderated-t" in selected_computations
+    args.required_layers_override = (
+        ("logFC", EFFECT_LAYER) if include_moderated_t else ("logFC",)
+    )
+    args.require_adj_p_override = True
     settings = {
         "deg_p_threshold": 0.05,
         "deg_abs_logfc_threshold": 0.2,
@@ -1276,10 +1274,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         "max_baseline_peers": args.max_baseline_peers,
         "peer_sampling_seed": args.peer_sampling_seed,
         "computations": list(selected_computations),
-        "include_raw_metrics": "raw" in selected_computations or include_moderated_t,
+        "include_raw_metrics": "raw" in selected_computations,
         "include_moderated_t": include_moderated_t,
         "z_score_scale_variants": list(z_score_scale_variants),
-        "scorer_version": "parallel-deg-v4",
+        "scorer_version": "parallel-deg-v5",
     }
     metrics_path, _ = run_analysis(
         analysis=ANALYSIS,
@@ -1287,9 +1285,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         args=args,
         context_columns=CONTEXT_COLUMNS,
         rows_per_shard=args.rows_per_shard,
-        final_metrics_name=(
-            MODERATED_T_METRICS_NAME if include_moderated_t else FINAL_METRICS_NAME
-        ),
+        final_metrics_name=FINAL_METRICS_NAME,
         settings=settings,
         code_paths=[
             Path(__file__),

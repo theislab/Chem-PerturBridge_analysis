@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Parallel Table 9 retrieval for raw, direction, moderated-t, and two z-score scopes.
+"""Parallel Tables 12/13 retrieval for raw, direction, moderated-t, and two z-score scopes.
 
 The z-score peer path preserves elmella/cigs-production-hardening (46a72c5).
-Strict whole-stratum centroids retain the Table 9 notebook convention. Historical
+Strict whole-stratum centroids retain the historical retrieval notebook convention. Historical
 metric/scale names are data and bootstrap identifiers, independent of CLI names.
 """
 from __future__ import annotations
@@ -1046,7 +1046,7 @@ def _score_selected_scale(
 
 
 def peer_cap(settings: Mapping[str, Any], computation: str, similarity: str) -> int:
-    """Preserve the per-representation caps supported by saved Table 9 results."""
+    """Preserve the per-representation caps supported by saved retrieval results."""
     override = settings.get("max_baseline_peers")
     if override is not None:
         return int(override)

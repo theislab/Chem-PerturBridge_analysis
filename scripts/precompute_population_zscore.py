@@ -244,7 +244,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--cache-root",
         type=Path,
-        default=REPO_ROOT / "results" / "w4_population_zscore_stats",
+        default=REPO_ROOT / "results" / "population_zscore_stats",
     )
     parser.add_argument(
         "--scope",

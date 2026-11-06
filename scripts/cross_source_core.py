@@ -62,7 +62,7 @@ DATASET_SPECS = (
     DatasetSpec("vcpi_0001", "VCPI-0001", _line_source_dir("vcpi_0001", 0)),
     DatasetSpec("cigs_tcm", "CIGS-TCM", _line_source_dir("cigs_tcm", 0)),
     DatasetSpec("vcpi_0002", "VCPI-0002", _line_source_dir("vcpi_0002", 0)),
-    # These sources are retained for Table 6. Their DEG/retrieval layer capability
+    # These sources are retained for Table 8. Their DEG/retrieval layer capability
     # should be verified before adding the corresponding profiles.
     DatasetSpec(
         "gdpx2",

@@ -118,7 +118,7 @@ DEFAULT_MIN_RETRIEVAL_COMPOUNDS_PER_LINE_TIME = 10
 # scored peer counts are recorded so a capped run is never mistaken for a full one.
 MAX_BASELINE_PEERS: Optional[int] = None
 PEER_SAMPLING_SEED = DEFAULT_PEER_SAMPLING_SEED
-# Tables 7 and 8 report the adj.P.Value < 0.05 DEG-restricted metrics.
+# Tables 10 and 11 report the adj.P.Value < 0.05 DEG-restricted metrics.
 PEER_BASELINE_DEG_METRICS = ("deg_lfc_spearman_sym", "direction_agreement")
 DEG_DEFINITION_CONFIG = {
     "p05": {

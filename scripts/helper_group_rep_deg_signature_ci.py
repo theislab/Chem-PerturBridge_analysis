@@ -1,4 +1,4 @@
-"""Summarize Table 4/6 scores for raw, population z-scores, and moderated-t.
+"""Summarize Tables 6/8 scores for raw, population z-scores, and moderated-t.
 
 All modes share condition aggregation and compound-cluster BCa intervals. Historical
 bootstrap inputs are preserved: base seed, summary levels, ordered group values,
@@ -24,7 +24,8 @@ else:
     from cluster_bootstrap_ci import cluster_bca_nested_mean_ci_table
 
 REPO = Path(__file__).resolve().parents[1]
-OUT_PATH = REPO / "results_updated/w4_table_4_6/capfix_table46_cluster_bca_ci.tsv"
+# Filenames follow the current tables; historical summary-level keys preserve bootstrap seeds.
+OUT_PATH = REPO / "results/overlap_group_rep_agreement_metrics/capfix_table68_cluster_bca_ci.tsv"
 
 DRUG_LINE_TIME_COLUMNS = ["dataset_a", "dataset_b", "cell_type", "time_key", "pubchem_cid"]
 IDENTITY = [*DRUG_LINE_TIME_COLUMNS, "matched_condition_key", "left_obs_id", "right_obs_id"]
@@ -213,7 +214,7 @@ LEGACY_ALIASES = {
             "observed_spearman_t": "pbt_observed_spearman_t",
             "baseline_pair_spearman_t": "pbt_source_centroid_spearman_t_pair",
         },
-        # The reference puts the Table 6 delta on its own level, so it needs its own call.
+        # The reference puts the all-gene (current Table 8) delta on its own level, so it needs its own call.
         "dataset_pair_baseline_adjusted": {
             "delta_pair_mean_spearman_t": "pbt_delta_vs_source_centroid_spearman_t",
         },
@@ -223,11 +224,12 @@ PEER_SUMMARY_LEVELS = {
     "deg": "table_4_moderated_t_peer_dataset_pair",
     "signature": "table_6_moderated_t_peer_dataset_pair",
 }
+# Fallback filenames for saved moderated-t runs from before filename unification.
 MODERATED_T_SCORED_STEMS = {
     "deg": "deg_moderated_t_scored_metrics.tsv",
     "signature": "signature_moderated_t_scored_metrics.tsv",
 }
-TABLES = {"deg": "Table 4", "signature": "Table 6"}
+TABLES = {"deg": "Table 6", "signature": "Table 8"}
 # Published CI tables the legacy family must reproduce, for --verify.
 REFERENCE_CI = {
     "deg": REPO
@@ -237,7 +239,7 @@ REFERENCE_CI = {
 }
 
 
-MODERATED_T_OUT_PATH = REPO / "results_updated/w4_table_4_6/moderated_t_table46_cluster_bca_ci.tsv"
+MODERATED_T_OUT_PATH = REPO / "results/overlap_group_rep_agreement_metrics/moderated_t_table68_cluster_bca_ci.tsv"
 COMPUTATIONS = ("raw", "z-score-dataset", "z-score-dataset-cell-type", "moderated-t")
 VARIANT_COMPUTATIONS = {
     RAW_VARIANT: "raw",
@@ -453,13 +455,14 @@ def summarize_family(
 def summarize_moderated_t(
     analysis: str, run_tag: str, *, scored_path: Path | None = None,
 ) -> pd.DataFrame | None:
-    path = scored_path if scored_path is not None else (
-        REPO
-        / "results/parallel_cross_source"
-        / analysis
-        / run_tag
-        / MODERATED_T_SCORED_STEMS[analysis]
-    )
+    if scored_path is not None:
+        path = scored_path
+    else:
+        run_dir = REPO / "results/parallel_cross_source" / analysis / run_tag
+        path = run_dir / SCORED_STEMS[analysis]
+        if not path.exists():
+            # Saved runs predating the unified filenames remain readable.
+            path = run_dir / MODERATED_T_SCORED_STEMS[analysis]
     if not path.exists():
         print(f"[skip] {TABLES[analysis]} ({analysis}): {run_tag} not scored yet")
         return None
