@@ -92,9 +92,9 @@ been run from the repository root.
 
 ### Retrieval environment (Tables 12/13)
 
-Exact reproduction of the sign(logFC) retrieval scores in Tables 12/13 needs Python 3.12.13 with
-`retrieval_requirements.txt` and the default `--workers 1`; in the 3.9.18 `.venv`, tied
-sign(logFC) cosine peer ranks can differ in the last digits. Create it outside the repository:
+Exact reproduction of the raw logFC, sign(logFC) and moderated-t retrieval scores in
+Tables 12/13 (`--exact`) needs Python 3.12.13 with `retrieval_requirements.txt`; in the
+3.9.18 `.venv`, tied cosine peer ranks can differ in the last digits.
 
 ```bash
 RETRIEVAL_ENV=/path/to/retrieval_env
@@ -147,13 +147,14 @@ bash scripts/slurm/run_overlap_group_rep_signature_similarity.sh
 bash scripts/slurm/run_overlap_group_rep_retrieval_metrics.sh
 ```
 
-For exact sign(logFC) retrieval scores, rerun its array task (task 1) in the
-[retrieval environment](#retrieval-environment-tables-1213) with `--exact`, which runs
-it on the paper's CPU type (Intel Xeon Gold 6134). `UV_NO_SYNC=1` keeps `uv`
-from syncing the 3.9.18 lockfile into it; its warning about `.python-version` is expected.
+For exact raw logFC, sign(logFC) and moderated-t retrieval scores, rerun their array tasks
+(0–2) in the [retrieval environment](#retrieval-environment-tables-1213) with `--exact`.
+It scores like the paper notebooks (`scripts/exact_retrieval.py`), in one process with
+eight BLAS threads, on the paper's CPU type (Intel Xeon Gold 6134). `UV_NO_SYNC=1` keeps
+`uv` from syncing the 3.9.18 lockfile into it; its warning about `.python-version` is expected.
 
 ```bash
-UV_PROJECT_ENVIRONMENT="$RETRIEVAL_ENV" UV_NO_SYNC=1 ARRAY=1 bash scripts/slurm/run_overlap_group_rep_retrieval_metrics.sh --exact
+UV_PROJECT_ENVIRONMENT="$RETRIEVAL_ENV" UV_NO_SYNC=1 ARRAY=0,1,2 bash scripts/slurm/run_overlap_group_rep_retrieval_metrics.sh --exact
 ```
 
 ### Representation sweep
@@ -245,6 +246,7 @@ uv run python scripts/run_overlap_group_rep_retrieval_metrics.py \
   --datasets sciplex,tahoe \
   --compute raw,moderated-t \
   --similarities cosine negative_l2 \
+  --workers 4 \
   --run-tag example
 ```
 

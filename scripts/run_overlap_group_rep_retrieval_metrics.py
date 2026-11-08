@@ -13,14 +13,13 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional
 
-# The paper's retrieval notebooks scored in one process with eight BLAS threads; exact
-# sign(logFC) cosine ties depend on that summation order. Threads must be set before NumPy loads.
-# Spawned --workers processes re-run this module as __mp_main__ and keep one thread each.
-PAPER_RUNTIME = {"workers": 1, "blas_threads": 8}
-_blas_threads = PAPER_RUNTIME["blas_threads"] if __name__ == "__main__" else 1
+# --exact scores in one process with eight BLAS threads, as the paper notebooks did.
+# Threads must be set before NumPy loads; spawned --workers processes keep one thread.
+EXACT_BLAS_THREADS = "8"
+_blas_threads = EXACT_BLAS_THREADS if __name__ == "__main__" and "--exact" in sys.argv[1:] else "1"
 for _thread_variable in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
                          "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS"):
-    os.environ[_thread_variable] = str(_blas_threads)
+    os.environ[_thread_variable] = _blas_threads
 
 import numpy as np
 import pandas as pd
@@ -29,7 +28,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts import cross_source_core
+from scripts import cross_source_core, exact_retrieval
 from scripts.cross_source_parallel import (
     TaskSpec, add_common_arguments, add_computation_arguments, resolve_computations,
     print_computations, make_worker_catalog, make_worker_z_score_catalog, read_task_input,
@@ -38,8 +37,8 @@ from scripts.cross_source_parallel import (
 from scripts.cross_source_scoring import (
     ADJ_PVALUE_LAYER_PREFERENCES, RETRIEVAL_SIMILARITIES, build_logfc_pool_matrices,
     build_pool_matrices, pool_frame_for_context, strict_positive_maps, strict_positive_mask,
-    similarity_matrix, column_major_cosine_matrix, score_vector_against_matrix, score_vector_pair,
-    peer_vector_scores, peer_vector_pair, summarize_retrieval_scores, select_peer_indices, retrieval_peer_summary,
+    similarity_matrix, score_vector_against_matrix, score_vector_pair,
+    summarize_retrieval_scores, select_peer_indices, retrieval_peer_summary,
     expected_single_signature_metrics, raw_dose_fold_differences, exact_cross_assay_null,
     exact_null_rank_calibration, exact_null_mid_p,
 )
@@ -359,14 +358,9 @@ def _strict_enriched_rows_for_direction(
     eligibility_query_matrix: Optional[np.ndarray] = None,
     eligibility_target_matrix: Optional[np.ndarray] = None,
     progress: Optional[Callable[[str, str], None]] = None,
-    dot_then_divide_peers: bool = False,
-    column_major_cosine: bool = False,
+    exact: bool = False,
 ) -> None:
-    # Peers and centroids use dot-then-divide cosine for logFC, sign(logFC) and moderated-t;
-    # z-score peers normalize first. Those three scales also score the cosine matrix, which
-    # target peers are read from, on column-major copies.
-    score_peers = peer_vector_scores if dot_then_divide_peers else score_vector_against_matrix
-    score_pair = peer_vector_pair if dot_then_divide_peers else score_vector_pair
+    score_all, score_peers, score_pair = exact_retrieval.scorers(exact)
     query_obs_ids = query_pool["obs_id"].astype(str).to_numpy()
     query_compounds = query_pool["pubchem_cid"].astype(str).to_numpy()
     query_dose_keys = query_pool["dose_key"].astype(str).to_numpy()
@@ -377,13 +371,8 @@ def _strict_enriched_rows_for_direction(
     target_doses = target_pool["pert_dose_uM"].to_numpy(dtype=np.float64)
 
     for metric in similarity_metrics:
-        if precomputed_score_matrix is None and column_major_cosine and metric == "cosine":
-            score_matrix, valid_queries, valid_targets = column_major_cosine_matrix(
-                query_matrix,
-                target_matrix,
-            )
-        elif precomputed_score_matrix is None:
-            score_matrix, valid_queries, valid_targets = similarity_matrix(
+        if precomputed_score_matrix is None:
+            score_matrix, valid_queries, valid_targets = score_all(
                 query_matrix,
                 target_matrix,
                 metric,
@@ -1251,8 +1240,7 @@ def _context_records(frame, *, config, catalog, z_score_catalog, progress=None):
                         similarity_metrics=(metric,), include_within_control=False, representation=representation,
                         centroid_query_matrix=raw_matrices[side] if computation == "direction" else None,
                         centroid_target_matrix=raw_matrices[1-side] if computation == "direction" else None,
-                        dot_then_divide_peers=True,
-                        column_major_cosine=True,
+                        exact=settings.get("exact", False),
                     )
         rows = list(computation_records.values())
         # Reviewer workers sort their rows by the original identity columns before merging.
@@ -1332,9 +1320,14 @@ def build_parser():
     add_common_arguments(parser, analysis=ANALYSIS, include_z_score_scales=False)
     add_computation_arguments(parser, computations=COMPUTATIONS)
     parser.set_defaults(datasets="l1000_phase1,l1000_phase2,tahoe,cigs_mce,cigs_tcm,sciplex",
-                        max_baseline_peers=None, workers=PAPER_RUNTIME["workers"])
+                        max_baseline_peers=None)
     parser.add_argument("--similarities", nargs="+", choices=RETRIEVAL_SIMILARITIES,
                         default=list(RETRIEVAL_SIMILARITIES), help="Similarity metrics to score (default: all three).")
+    parser.add_argument("--exact", action="store_true",
+                        help="Reproduce the paper's raw logFC, sign(logFC) and moderated-t scores bitwise: one "
+                             "process with eight BLAS threads (overrides --workers) and the notebooks' cosine "
+                             "scoring (scripts/exact_retrieval.py). Needs retrieval_requirements.txt and an "
+                             "Intel Xeon Gold 6134 node.")
     return parser
 
 
@@ -1344,6 +1337,10 @@ def main(argv=None):
         print_computations(COMPUTATIONS)
         return 0
     computations = resolve_computations(args.compute, computations=COMPUTATIONS)
+    if args.exact:
+        if _blas_threads != EXACT_BLAS_THREADS:
+            raise SystemExit("--exact needs eight BLAS threads; run this file as a script.")
+        args.workers = 1
     args.required_layers_override = ("logFC", "t")
     args.require_adj_p_override = True
     settings = {
@@ -1352,12 +1349,14 @@ def main(argv=None):
         "z_score_scale_variants": [Z_SCORE_SCALES[name] for name in computations if name in Z_SCORE_SCALES],
         "scorer_version": "table9-five-representations-v1",
     }
+    if args.exact:
+        settings["exact"] = True
     metrics_path, _ = run_analysis(
         analysis=ANALYSIS, scorer_module="scripts.run_overlap_group_rep_retrieval_metrics", args=args,
         context_columns=CONTEXT_COLUMNS, rows_per_shard=None, final_metrics_name=FINAL_METRICS_NAME,
         settings=settings, code_paths=[Path(__file__), *[REPO_ROOT / "scripts" / name for name in (
             "cross_source_core.py", "cross_source_parallel.py", "cross_source_scoring.py",
-            "population_zscore.py", "peer_baselines.py", "notebook_cache.py")]],
+            "exact_retrieval.py", "population_zscore.py", "peer_baselines.py", "notebook_cache.py")]],
     )
     summarize_run(metrics_path, computations=computations)
     return 0

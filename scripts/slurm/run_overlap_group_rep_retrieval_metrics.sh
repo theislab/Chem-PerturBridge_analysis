@@ -5,8 +5,8 @@
 #        4=z-score-dataset-cell-type. Select subsets with ARRAY=1,3 bash scripts/slurm/run_overlap_group_rep_retrieval_metrics.sh.
 # Run with bash; the launcher submits the array and waits for completion.
 # Z-score tasks require existing population caches; see reproducibility/table12_13.md.
-# --exact runs on the paper's CPU type (Intel Xeon Gold 6134): BLAS kernels differ by CPU,
-# and the last bit of a cosine score decides ties between identical signatures.
+# --exact (raw, direction, moderated-t) reproduces the paper's scores bitwise: it runs one
+# worker with eight BLAS threads on the paper's CPU type, Intel Xeon Gold 6134.
 
 set -euo pipefail
 
@@ -14,10 +14,14 @@ if [[ -n "${COMPUTE:-}" ]]; then
   echo "Select representations with ARRAY=0-4 bash scripts/slurm/run_overlap_group_rep_retrieval_metrics.sh instead of COMPUTE." >&2
   exit 2
 fi
-EXACT=0
-RUNNER_ARGS=()
+EXACT_ARGS=()
 for argument in "$@"; do
   case "$argument" in
+    --exact)
+      # OpenBLAS uses at most one thread per allocated CPU.
+      export WORKERS=1 CPUS_PER_TASK=8
+      EXACT_ARGS=(--constraint=intel_xeon_gold_6134)
+      ;;
     --compute|--compute=*)
       echo "Select representations with ARRAY=0-4 bash scripts/slurm/run_overlap_group_rep_retrieval_metrics.sh instead of --compute." >&2
       exit 2
@@ -25,12 +29,6 @@ for argument in "$@"; do
     --run-tag|--run-tag=*)
       echo "Use RUN_TAG=... before bash instead of passing --run-tag." >&2
       exit 2
-      ;;
-    --exact)
-      EXACT=1
-      ;;
-    *)
-      RUNNER_ARGS+=("$argument")
       ;;
   esac
 done
@@ -56,8 +54,7 @@ cd "$REPO"
 DATASETS="${DATASETS:-l1000_phase1,l1000_phase2,tahoe,cigs_mce,cigs_tcm,sciplex}"
 computations=(raw direction moderated-t z-score-dataset z-score-dataset-cell-type)
 COMPUTE="${computations[${SLURM_ARRAY_TASK_ID:-0}]:?Use ARRAY=0-4 bash scripts/slurm/run_overlap_group_rep_retrieval_metrics.sh}"
-# One worker reproduces the paper bitwise; more workers are faster but score with one BLAS thread each.
-WORKERS="${WORKERS:-1}"
+WORKERS="${WORKERS:-${SLURM_CPUS_PER_TASK:-8}}"
 Z_SCORE_STATS_ROOT="${Z_SCORE_STATS_ROOT:-results/population_zscore_stats}"
 if [[ -n "${RUN_TAG:-}" && "${SLURM_ARRAY_TASK_COUNT:-1}" -gt 1 ]]; then
   RUN_TAG="${RUN_TAG}_${COMPUTE}"
@@ -102,13 +99,11 @@ SLURM_ARGS=(
   --error="${LOGS_DIR}/slurm-%x-%A_%a.err"
   --export=ALL
   --chdir="${REPO}"
+  "${EXACT_ARGS[@]}"
 )
-if [[ "${EXACT}" == 1 ]]; then
-  SLURM_ARGS+=(--constraint=intel_xeon_gold_6134)
-fi
 
 ARRAY_JOB_ID="$(sbatch --parsable "${SLURM_ARGS[@]}" \
-  --wrap="$(quote_command bash -c "${WORKER_SCRIPT}" -- "${RUNNER_ARGS[@]}")")"
+  --wrap="$(quote_command bash -c "${WORKER_SCRIPT}" -- "$@")")"
 ARRAY_JOB_ID="${ARRAY_JOB_ID%%;*}"
 echo "[info] submitted array ${ARRAY_JOB_ID}; waiting for all tasks"
 

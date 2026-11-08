@@ -569,75 +569,6 @@ def score_vector_pair(
     return float(scores[0, 0])
 
 
-def peer_vector_scores(
-    query: np.ndarray,
-    matrix: np.ndarray,
-    metric: str,
-) -> np.ndarray:
-    """Single-query scores with dot-then-divide cosine.
-
-    Cosine divides the dot product by both norms instead of normalizing first, so
-    sign vectors with equal true cosine get bitwise-equal scores; zero-norm or
-    non-finite candidates score NaN. Other metrics use score_vector_against_matrix.
-    """
-    if metric != "cosine":
-        return score_vector_against_matrix(query, matrix, metric)
-    query = np.asarray(query, dtype=np.float64)
-    matrix = np.atleast_2d(np.asarray(matrix, dtype=np.float64))
-    scores = np.full(len(matrix), np.nan, dtype=np.float64)
-    query_norm = float(np.linalg.norm(query))
-    if not np.isfinite(query_norm) or query_norm <= 0.0:
-        return scores
-    norms = np.linalg.norm(matrix, axis=1)
-    valid = np.isfinite(matrix).all(axis=1) & np.isfinite(norms) & (norms > 0.0)
-    if valid.any():
-        scores[valid] = np.clip(
-            (matrix[valid] @ query) / (norms[valid] * query_norm),
-            -1.0,
-            1.0,
-        )
-    return scores
-
-
-def peer_vector_pair(
-    left: np.ndarray,
-    right: np.ndarray,
-    metric: str,
-) -> float:
-    return float(
-        peer_vector_scores(
-            left,
-            np.asarray(right, dtype=np.float64)[None, :],
-            metric,
-        )[0]
-    )
-
-
-def column_major_cosine_matrix(
-    query_matrix: np.ndarray,
-    candidate_matrix: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Cosine matrix with row norms taken on column-major copies; invalid rows score NaN.
-
-    The layout fixes the last bit of each score, which decides ties between identical
-    signatures.
-    """
-    query_matrix = np.asfortranarray(query_matrix, dtype=np.float64)
-    candidate_matrix = np.asfortranarray(candidate_matrix, dtype=np.float64)
-    query_norms = np.linalg.norm(query_matrix, axis=1)
-    candidate_norms = np.linalg.norm(candidate_matrix, axis=1)
-    valid_query = np.isfinite(query_norms) & (query_norms > 0.0)
-    valid_candidate = np.isfinite(candidate_norms) & (candidate_norms > 0.0)
-    scores = np.full((len(query_matrix), len(candidate_matrix)), np.nan, dtype=np.float64)
-    scores[np.ix_(valid_query, valid_candidate)] = np.clip(
-        (query_matrix[valid_query] / query_norms[valid_query, None])
-        @ (candidate_matrix[valid_candidate] / candidate_norms[valid_candidate, None]).T,
-        -1.0,
-        1.0,
-    )
-    return scores, valid_query, valid_candidate
-
-
 def normalized_best_positive_rank(
     scores: np.ndarray,
     positive_mask: np.ndarray,
@@ -1168,7 +1099,6 @@ __all__ = [
     "auroc_from_scores",
     "build_logfc_pool_matrices",
     "build_pool_matrices",
-    "column_major_cosine_matrix",
     "deg_mask",
     "deg_restricted_spearman",
     "direction_agreement_with_masks",
@@ -1183,8 +1113,6 @@ __all__ = [
     "null_best_rank_survival",
     "observed_deg_metrics",
     "peer_matrix_for_query",
-    "peer_vector_pair",
-    "peer_vector_scores",
     "pool_frame_for_context",
     "primary_positive_mask",
     "raw_dose_fold_differences",
