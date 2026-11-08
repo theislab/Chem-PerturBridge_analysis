@@ -92,9 +92,10 @@ def attach_layers(
 ) -> list[str]:
     """Attach sidecar ashr layers to ``adata`` in place; returns layer names added.
 
-    A missing sidecar is not an error: datasets without one simply keep their
-    original representation set. A sidecar that disagrees with the AnnData is an
-    error, because silently misaligned rows would corrupt every downstream score.
+    A missing sidecar attaches nothing; retrieval raises later only if an ASHR
+    representation was explicitly requested. A sidecar that disagrees with the
+    AnnData is an error, because silently misaligned rows would corrupt every
+    downstream score.
     """
     path = sidecar_path(root, dataset_name, cell_type)
     if not path.exists():

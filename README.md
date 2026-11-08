@@ -198,6 +198,7 @@ Useful environment variables:
 
 - `PARTITION`, `QOS`, `CPUS_PER_TASK`, `MEM`, `TIME`: job resources.
 - `UV_BIN`: `uv` executable; default `uv`.
+- `LOGS_DIR`: Slurm log directory; default repository root.
 - `ARRAY`: select computations:
   - Agreement: `0` raw, `1` dataset z-score, `2` dataset × cell-type z-score, `3` moderated-t.
   - Retrieval: `0` raw, `1` direction, `2` moderated-t, `3` dataset z-score, `4` dataset × cell-type z-score.
@@ -213,7 +214,7 @@ Example:
 QOS=cpu_normal \
 PARTITION=cpu_p \
 UV_BIN=uv \
-RUN_TAG=my_run \
+OUTPUT_DIR=results/representation_sweep/my_run \
 bash scripts/slurm/run_representation_sweep.sh
 ```
 
@@ -223,11 +224,12 @@ Useful environment variables:
 - `REPRESENTATIONS`, `SKIP_REPRESENTATIONS`: representations to include or exclude.
 - `METRICS`, `CELL_TYPES`: scoring metrics and cell types.
 - `INCLUDE_SELF_DATASET`: `0`/`1`; default `0`.
-- `RUN_TAG`: names the output folder under `results/representation_sweep/`.
+- `OUTPUT_DIR`: run folder; default `results/representation_sweep/production`.
+- `MERGED_DIR`: merged detail, summaries, ranking and LaTeX tables; default `OUTPUT_DIR/merged`.
+- `LOGS_DIR`: Slurm logs (default `logs/representation_sweep/<name of OUTPUT_DIR>`). The manuscript tables in `tables_and_figures/` are only replaced by `build.py --tables sweep`.
 - `DATASET_PATH_ARGS`: dataset-path overrides, e.g. `--dataset-path sciplex=/path`.
 - `PREP_MEM`, `TASK_MEM`, `MERGE_MEM`: defaults `200G`, `100G`, `200G`.
 - `PREP_TIME`, `TASK_TIME`, `MERGE_TIME`: stage time limits.
-
 
 ## Python CLI examples
 
@@ -280,12 +282,13 @@ done
 uv run python -m chem_perturbridge_analysis.retrieval.parallel_cli merge \
   --task-file "$SWEEP_DIR/tasks.csv" \
   --task-output-dir "$SWEEP_DIR/tasks" \
-  --output-dir "$SWEEP_DIR" \
+  --output-dir "$SWEEP_DIR/merged" \
   --output-prefix "" \
   --strict-missing
+cp "$SWEEP_DIR/truth_summary.csv" "$SWEEP_DIR/merged/"
 
 # 4. Summarize results.
 uv run python tables_and_figures/agreement_retrieval/scripts/summarize_representation_sweep.py \
-  --results-dir "$SWEEP_DIR" \
-  --latex-dir tables_and_figures/agreement_retrieval/results/example/representation_sweep
+  --results-dir "$SWEEP_DIR/merged" \
+  --latex-dir "$SWEEP_DIR/merged"
 ```
