@@ -5,6 +5,8 @@
 #        4=z-score-dataset-cell-type. Select subsets with ARRAY=1,3 bash scripts/slurm/run_overlap_group_rep_retrieval_metrics.sh.
 # Run with bash; the launcher submits the array and waits for completion.
 # Z-score tasks require existing population caches; see reproducibility/table12_13.md.
+# --exact runs on the paper's CPU type (Intel Xeon Gold 6134): BLAS kernels differ by CPU,
+# and the last bit of a cosine score decides ties between identical signatures.
 
 set -euo pipefail
 
@@ -12,6 +14,8 @@ if [[ -n "${COMPUTE:-}" ]]; then
   echo "Select representations with ARRAY=0-4 bash scripts/slurm/run_overlap_group_rep_retrieval_metrics.sh instead of COMPUTE." >&2
   exit 2
 fi
+EXACT=0
+RUNNER_ARGS=()
 for argument in "$@"; do
   case "$argument" in
     --compute|--compute=*)
@@ -21,6 +25,12 @@ for argument in "$@"; do
     --run-tag|--run-tag=*)
       echo "Use RUN_TAG=... before bash instead of passing --run-tag." >&2
       exit 2
+      ;;
+    --exact)
+      EXACT=1
+      ;;
+    *)
+      RUNNER_ARGS+=("$argument")
       ;;
   esac
 done
@@ -68,7 +78,7 @@ if [[ -n "${OUTPUT_DIR:-}" ]]; then
   args+=(--output-dir "$OUTPUT_DIR")
 fi
 
-echo "[info] job=${SLURM_JOB_ID:-none} task=${SLURM_ARRAY_TASK_ID:-0} workers=${WORKERS} repo=${REPO}"
+echo "[info] job=${SLURM_JOB_ID:-none} task=${SLURM_ARRAY_TASK_ID:-0} node=$(hostname) workers=${WORKERS} repo=${REPO}"
 echo "[info] datasets=${DATASETS} compute=${COMPUTE} run_tag=${RUN_TAG} max_baseline_peers=${MAX_BASELINE_PEERS:-automatic}"
 
 exec "${UV_BIN}" run python scripts/run_overlap_group_rep_retrieval_metrics.py "${args[@]}" "$@"
@@ -93,9 +103,12 @@ SLURM_ARGS=(
   --export=ALL
   --chdir="${REPO}"
 )
+if [[ "${EXACT}" == 1 ]]; then
+  SLURM_ARGS+=(--constraint=intel_xeon_gold_6134)
+fi
 
 ARRAY_JOB_ID="$(sbatch --parsable "${SLURM_ARGS[@]}" \
-  --wrap="$(quote_command bash -c "${WORKER_SCRIPT}" -- "$@")")"
+  --wrap="$(quote_command bash -c "${WORKER_SCRIPT}" -- "${RUNNER_ARGS[@]}")")"
 ARRAY_JOB_ID="${ARRAY_JOB_ID%%;*}"
 echo "[info] submitted array ${ARRAY_JOB_ID}; waiting for all tasks"
 

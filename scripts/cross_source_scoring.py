@@ -613,6 +613,31 @@ def peer_vector_pair(
     )
 
 
+def column_major_cosine_matrix(
+    query_matrix: np.ndarray,
+    candidate_matrix: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Cosine matrix with row norms taken on column-major copies; invalid rows score NaN.
+
+    The layout fixes the last bit of each score, which decides ties between identical
+    signatures.
+    """
+    query_matrix = np.asfortranarray(query_matrix, dtype=np.float64)
+    candidate_matrix = np.asfortranarray(candidate_matrix, dtype=np.float64)
+    query_norms = np.linalg.norm(query_matrix, axis=1)
+    candidate_norms = np.linalg.norm(candidate_matrix, axis=1)
+    valid_query = np.isfinite(query_norms) & (query_norms > 0.0)
+    valid_candidate = np.isfinite(candidate_norms) & (candidate_norms > 0.0)
+    scores = np.full((len(query_matrix), len(candidate_matrix)), np.nan, dtype=np.float64)
+    scores[np.ix_(valid_query, valid_candidate)] = np.clip(
+        (query_matrix[valid_query] / query_norms[valid_query, None])
+        @ (candidate_matrix[valid_candidate] / candidate_norms[valid_candidate, None]).T,
+        -1.0,
+        1.0,
+    )
+    return scores, valid_query, valid_candidate
+
+
 def normalized_best_positive_rank(
     scores: np.ndarray,
     positive_mask: np.ndarray,
@@ -1143,6 +1168,7 @@ __all__ = [
     "auroc_from_scores",
     "build_logfc_pool_matrices",
     "build_pool_matrices",
+    "column_major_cosine_matrix",
     "deg_mask",
     "deg_restricted_spearman",
     "direction_agreement_with_masks",

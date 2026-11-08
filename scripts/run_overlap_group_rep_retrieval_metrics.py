@@ -38,7 +38,7 @@ from scripts.cross_source_parallel import (
 from scripts.cross_source_scoring import (
     ADJ_PVALUE_LAYER_PREFERENCES, RETRIEVAL_SIMILARITIES, build_logfc_pool_matrices,
     build_pool_matrices, pool_frame_for_context, strict_positive_maps, strict_positive_mask,
-    similarity_matrix, score_vector_against_matrix, score_vector_pair,
+    similarity_matrix, column_major_cosine_matrix, score_vector_against_matrix, score_vector_pair,
     peer_vector_scores, peer_vector_pair, summarize_retrieval_scores, select_peer_indices, retrieval_peer_summary,
     expected_single_signature_metrics, raw_dose_fold_differences, exact_cross_assay_null,
     exact_null_rank_calibration, exact_null_mid_p,
@@ -360,9 +360,11 @@ def _strict_enriched_rows_for_direction(
     eligibility_target_matrix: Optional[np.ndarray] = None,
     progress: Optional[Callable[[str, str], None]] = None,
     dot_then_divide_peers: bool = False,
+    column_major_cosine: bool = False,
 ) -> None:
     # Peers and centroids use dot-then-divide cosine for logFC, sign(logFC) and moderated-t;
-    # z-score peers normalize first.
+    # z-score peers normalize first. Those three scales also score the cosine matrix, which
+    # target peers are read from, on column-major copies.
     score_peers = peer_vector_scores if dot_then_divide_peers else score_vector_against_matrix
     score_pair = peer_vector_pair if dot_then_divide_peers else score_vector_pair
     query_obs_ids = query_pool["obs_id"].astype(str).to_numpy()
@@ -375,7 +377,12 @@ def _strict_enriched_rows_for_direction(
     target_doses = target_pool["pert_dose_uM"].to_numpy(dtype=np.float64)
 
     for metric in similarity_metrics:
-        if precomputed_score_matrix is None:
+        if precomputed_score_matrix is None and column_major_cosine and metric == "cosine":
+            score_matrix, valid_queries, valid_targets = column_major_cosine_matrix(
+                query_matrix,
+                target_matrix,
+            )
+        elif precomputed_score_matrix is None:
             score_matrix, valid_queries, valid_targets = similarity_matrix(
                 query_matrix,
                 target_matrix,
@@ -1245,6 +1252,7 @@ def _context_records(frame, *, config, catalog, z_score_catalog, progress=None):
                         centroid_query_matrix=raw_matrices[side] if computation == "direction" else None,
                         centroid_target_matrix=raw_matrices[1-side] if computation == "direction" else None,
                         dot_then_divide_peers=True,
+                        column_major_cosine=True,
                     )
         rows = list(computation_records.values())
         # Reviewer workers sort their rows by the original identity columns before merging.

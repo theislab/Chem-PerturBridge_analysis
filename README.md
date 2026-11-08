@@ -148,11 +148,12 @@ bash scripts/slurm/run_overlap_group_rep_retrieval_metrics.sh
 ```
 
 For exact sign(logFC) retrieval scores, rerun its array task (task 1) in the
-[retrieval environment](#retrieval-environment-tables-1213). `UV_NO_SYNC=1` keeps `uv`
+[retrieval environment](#retrieval-environment-tables-1213) with `--exact`, which runs
+it on the paper's CPU type (Intel Xeon Gold 6134). `UV_NO_SYNC=1` keeps `uv`
 from syncing the 3.9.18 lockfile into it; its warning about `.python-version` is expected.
 
 ```bash
-UV_PROJECT_ENVIRONMENT="$RETRIEVAL_ENV" UV_NO_SYNC=1 ARRAY=1 bash scripts/slurm/run_overlap_group_rep_retrieval_metrics.sh
+UV_PROJECT_ENVIRONMENT="$RETRIEVAL_ENV" UV_NO_SYNC=1 ARRAY=1 bash scripts/slurm/run_overlap_group_rep_retrieval_metrics.sh --exact
 ```
 
 ### Representation sweep
