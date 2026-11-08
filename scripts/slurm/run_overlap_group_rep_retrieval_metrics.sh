@@ -46,7 +46,8 @@ cd "$REPO"
 DATASETS="${DATASETS:-l1000_phase1,l1000_phase2,tahoe,cigs_mce,cigs_tcm,sciplex}"
 computations=(raw direction moderated-t z-score-dataset z-score-dataset-cell-type)
 COMPUTE="${computations[${SLURM_ARRAY_TASK_ID:-0}]:?Use ARRAY=0-4 bash scripts/slurm/run_overlap_group_rep_retrieval_metrics.sh}"
-WORKERS="${WORKERS:-${SLURM_CPUS_PER_TASK:-8}}"
+# One worker reproduces the paper bitwise; more workers are faster but score with one BLAS thread each.
+WORKERS="${WORKERS:-1}"
 Z_SCORE_STATS_ROOT="${Z_SCORE_STATS_ROOT:-results/population_zscore_stats}"
 if [[ -n "${RUN_TAG:-}" && "${SLURM_ARRAY_TASK_COUNT:-1}" -gt 1 ]]; then
   RUN_TAG="${RUN_TAG}_${COMPUTE}"

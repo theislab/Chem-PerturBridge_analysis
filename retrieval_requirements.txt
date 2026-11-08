@@ -1,0 +1,9 @@
+# Python 3.12.13 environment for bitwise reproduction of the Tables 12/13 retrieval scores.
+# Tied sign(logFC) cosine scores depend on these wheels; numpy 2.4.3 bundles OpenBLAS 0.3.31.
+# See "Retrieval environment (Tables 12/13)" in README.md.
+numpy==2.4.3
+scipy==1.15.3
+pandas==2.3.3
+anndata==0.12.0
+h5py==3.16.0
+tqdm==4.67.3

@@ -13,9 +13,14 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional
 
+# The paper's retrieval notebooks scored in one process with eight BLAS threads; exact
+# sign(logFC) cosine ties depend on that summation order. Threads must be set before NumPy loads.
+# Spawned --workers processes re-run this module as __mp_main__ and keep one thread each.
+PAPER_RUNTIME = {"workers": 1, "blas_threads": 8}
+_blas_threads = PAPER_RUNTIME["blas_threads"] if __name__ == "__main__" else 1
 for _thread_variable in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
                          "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS"):
-    os.environ[_thread_variable] = "1"
+    os.environ[_thread_variable] = str(_blas_threads)
 
 import numpy as np
 import pandas as pd
@@ -34,7 +39,7 @@ from scripts.cross_source_scoring import (
     ADJ_PVALUE_LAYER_PREFERENCES, RETRIEVAL_SIMILARITIES, build_logfc_pool_matrices,
     build_pool_matrices, pool_frame_for_context, strict_positive_maps, strict_positive_mask,
     similarity_matrix, score_vector_against_matrix, score_vector_pair,
-    summarize_retrieval_scores, select_peer_indices, retrieval_peer_summary,
+    peer_vector_scores, peer_vector_pair, summarize_retrieval_scores, select_peer_indices, retrieval_peer_summary,
     expected_single_signature_metrics, raw_dose_fold_differences, exact_cross_assay_null,
     exact_null_rank_calibration, exact_null_mid_p,
 )
@@ -354,7 +359,12 @@ def _strict_enriched_rows_for_direction(
     eligibility_query_matrix: Optional[np.ndarray] = None,
     eligibility_target_matrix: Optional[np.ndarray] = None,
     progress: Optional[Callable[[str, str], None]] = None,
+    dot_then_divide_peers: bool = False,
 ) -> None:
+    # Peers and centroids use dot-then-divide cosine for logFC, sign(logFC) and moderated-t;
+    # z-score peers normalize first.
+    score_peers = peer_vector_scores if dot_then_divide_peers else score_vector_against_matrix
+    score_pair = peer_vector_pair if dot_then_divide_peers else score_vector_pair
     query_obs_ids = query_pool["obs_id"].astype(str).to_numpy()
     query_compounds = query_pool["pubchem_cid"].astype(str).to_numpy()
     query_dose_keys = query_pool["dose_key"].astype(str).to_numpy()
@@ -518,7 +528,7 @@ def _strict_enriched_rows_for_direction(
                         dtype=np.float64,
                     )
                     if precomputed_source_score_matrix is not None
-                    else score_vector_against_matrix(
+                    else score_peers(
                         query_matrix[query_idx],
                         query_matrix[source_rows],
                         metric,
@@ -534,7 +544,7 @@ def _strict_enriched_rows_for_direction(
             )
             source_centroid_similarity = float("nan")
             if len(source_all_rows):
-                source_centroid_similarity = score_vector_pair(
+                source_centroid_similarity = score_pair(
                     query_matrix[query_idx],
                     (query_matrix[source_all_rows].mean(axis=0, dtype=np.float64)
                      if centroid_query_matrix is None else
@@ -573,7 +583,7 @@ def _strict_enriched_rows_for_direction(
             )
             target_centroid_similarity = float("nan")
             if len(target_all_rows):
-                target_centroid_similarity = score_vector_pair(
+                target_centroid_similarity = score_pair(
                     query_matrix[query_idx],
                     (filtered_matrix[target_all_rows].mean(axis=0, dtype=np.float64)
                      if centroid_target_matrix is None else
@@ -1234,6 +1244,7 @@ def _context_records(frame, *, config, catalog, z_score_catalog, progress=None):
                         similarity_metrics=(metric,), include_within_control=False, representation=representation,
                         centroid_query_matrix=raw_matrices[side] if computation == "direction" else None,
                         centroid_target_matrix=raw_matrices[1-side] if computation == "direction" else None,
+                        dot_then_divide_peers=True,
                     )
         rows = list(computation_records.values())
         # Reviewer workers sort their rows by the original identity columns before merging.
@@ -1313,7 +1324,7 @@ def build_parser():
     add_common_arguments(parser, analysis=ANALYSIS, include_z_score_scales=False)
     add_computation_arguments(parser, computations=COMPUTATIONS)
     parser.set_defaults(datasets="l1000_phase1,l1000_phase2,tahoe,cigs_mce,cigs_tcm,sciplex",
-                        max_baseline_peers=None)
+                        max_baseline_peers=None, workers=PAPER_RUNTIME["workers"])
     parser.add_argument("--similarities", nargs="+", choices=RETRIEVAL_SIMILARITIES,
                         default=list(RETRIEVAL_SIMILARITIES), help="Similarity metrics to score (default: all three).")
     return parser

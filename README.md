@@ -90,6 +90,21 @@ Most batch scripts in this repository call `uv run`, so they can also be
 launched without manually activating `.venv` as long as `uv sync --locked` has
 been run from the repository root.
 
+### Retrieval environment (Tables 12/13)
+
+Exact reproduction of the sign(logFC) retrieval scores in Tables 12/13 needs Python 3.12.13 with
+`retrieval_requirements.txt` and the default `--workers 1`; in the 3.9.18 `.venv`, tied
+sign(logFC) cosine peer ranks can differ in the last digits. Create it outside the repository:
+
+```bash
+RETRIEVAL_ENV=/path/to/retrieval_env
+uv python install 3.12.13
+uv venv --python 3.12.13 "$RETRIEVAL_ENV"
+uv pip install --python "$RETRIEVAL_ENV/bin/python" -r retrieval_requirements.txt
+```
+
+See [Agreement and retrieval](#agreement-and-retrieval) for running retrieval with it.
+
 ### R
 
 ASHR preparation also requires R and `ashr`, installed separately from the
@@ -130,6 +145,14 @@ Run DEG agreement, whole-signature agreement and retrieval using logFC, moderate
 bash scripts/slurm/run_overlap_group_rep_deg_metrics.sh
 bash scripts/slurm/run_overlap_group_rep_signature_similarity.sh
 bash scripts/slurm/run_overlap_group_rep_retrieval_metrics.sh
+```
+
+For exact sign(logFC) retrieval scores, rerun its array task (task 1) in the
+[retrieval environment](#retrieval-environment-tables-1213). `UV_NO_SYNC=1` keeps `uv`
+from syncing the 3.9.18 lockfile into it; its warning about `.python-version` is expected.
+
+```bash
+UV_PROJECT_ENVIRONMENT="$RETRIEVAL_ENV" UV_NO_SYNC=1 ARRAY=1 bash scripts/slurm/run_overlap_group_rep_retrieval_metrics.sh
 ```
 
 ### Representation sweep
@@ -219,7 +242,6 @@ uv run python scripts/run_overlap_group_rep_retrieval_metrics.py \
   --datasets sciplex,tahoe \
   --compute raw,moderated-t \
   --similarities cosine negative_l2 \
-  --workers 4 \
   --run-tag example
 ```
 
