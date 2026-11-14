@@ -153,6 +153,8 @@ It scores like the paper notebooks (`scripts/exact_retrieval.py`), in one proces
 eight BLAS threads, on the paper's CPU type (Intel Xeon Gold 6134). `UV_NO_SYNC=1` keeps
 `uv` from syncing the 3.9.18 lockfile into it; its warning about `.python-version` is expected.
 
+**NB!** The `--exact` run writes to the same run folders, replacing the default results of tasks 0–2.
+
 ```bash
 UV_PROJECT_ENVIRONMENT="$RETRIEVAL_ENV" UV_NO_SYNC=1 ARRAY=0,1,2 bash scripts/slurm/run_overlap_group_rep_retrieval_metrics.sh --exact
 ```
